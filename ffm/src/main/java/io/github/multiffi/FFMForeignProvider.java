@@ -36,12 +36,10 @@ import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -328,9 +326,8 @@ public class FFMForeignProvider extends ForeignProvider {
         return ByteOrder.nativeOrder();
     }
 
-    static final boolean IS_WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
-
     private static final String OS_NAME = System.getProperty("os.name");
+    static final boolean IS_WINDOWS = OS_NAME.startsWith("Windows");
     private static boolean osNameStartsWithIgnoreCase(String prefix) {
         if (OS_NAME == null) return false;
         else return OS_NAME.startsWith(prefix)

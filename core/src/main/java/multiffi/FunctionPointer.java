@@ -1,7 +1,5 @@
 package multiffi;
 
-import multiffi.spi.ForeignProvider;
-
 import java.util.List;
 
 public abstract class FunctionPointer {

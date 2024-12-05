@@ -2,3 +2,5 @@ rootProject.name = 'multiffi'
 
 include ':core'
 include ':ffm'
+include ':jna'
+include ':jffi'
