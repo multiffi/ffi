@@ -1,0 +1,15 @@
+sourceCompatibility = JavaVersion.VERSION_22
+targetCompatibility = JavaVersion.VERSION_22
+
+tasks.withType(Test).configureEach {
+    jvmArgs += '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs += '--enable-native-access=ALL-UNNAMED'
+}
+
+dependencies {
+    api project(':core')
+    implementation project(':core')
+}
