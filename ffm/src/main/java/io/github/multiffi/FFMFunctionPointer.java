@@ -58,8 +58,10 @@ public class FFMFunctionPointer extends FunctionPointer {
                     critical = true;
                     linkerOptions.add(Linker.Option.critical(true));
                     break;
-                default:
+                case StandardCallOption.STDCALL:
                     break;
+                default:
+                    throw new IllegalArgumentException(option + " not supported");
             }
         }
         if (firstVarArg >= 0) linkerOptions.add(Linker.Option.firstVariadicArg(firstVarArg));
@@ -160,38 +162,29 @@ public class FFMFunctionPointer extends FunctionPointer {
             ForeignType type = parameterTypes.get(i);
             if (type == ScalarType.INT8) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getInt8(0);
-                else args[i] = ((Number) arg).byteValue();
             }
             else if (type == ScalarType.INT16) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getInt16(0);
-                else args[i] = ((Number) arg).shortValue();
             }
             else if (type == ScalarType.INT32) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getInt32(0);
-                else args[i] = ((Number) arg).intValue();
             }
             else if (type == ScalarType.INT64) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getInt64(0);
-                else args[i] = ((Number) arg).longValue();
             }
             else if (type == ScalarType.FLOAT) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getFloat(0);
-                else args[i] = ((Number) arg).floatValue();
             }
             else if (type == ScalarType.DOUBLE) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getDouble(0);
-                else args[i] = ((Number) arg).doubleValue();
             }
             else if (type == ScalarType.BOOLEAN) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getBoolean(0);
-                else Boolean.class.cast(arg);
             }
             else if (type == ScalarType.UTF16) {
                 if (arg instanceof MemoryBlock memoryBlock) args[i] = memoryBlock.getUTF16(0);
-                else Character.class.cast(arg);
             }
-            else {
-                MemoryBlock memoryBlock = (MemoryBlock) arg;
+            else if (arg instanceof MemoryBlock memoryBlock) {
                 MemorySegment memorySegment;
                 if (memoryBlock.isDirect()) memorySegment = MemorySegment.ofAddress(memoryBlock.address())
                         .reinterpret(memoryBlock.isBounded() ? memoryBlock.size() : Foreign.addressSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE);
