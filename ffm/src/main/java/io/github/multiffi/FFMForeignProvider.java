@@ -328,7 +328,7 @@ public class FFMForeignProvider extends ForeignProvider {
         return ByteOrder.nativeOrder();
     }
 
-    static final boolean IS_WINDOWS = osNameStartsWithIgnoreCase("windows");
+    static final boolean IS_WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
 
     private static final String OS_NAME = System.getProperty("os.name");
     private static boolean osNameStartsWithIgnoreCase(String prefix) {
@@ -365,7 +365,7 @@ public class FFMForeignProvider extends ForeignProvider {
         SymbolLookup lookup = SymbolLookup.loaderLookup().or(LINKER.defaultLookup());
         boolean isLinux = osNameStartsWithIgnoreCase("linux");
         String libraryName;
-        if (IS_WINDOWS) libraryName = osNameStartsWithIgnoreCase("windows ce") ? "coredll" : "msvcrt";
+        if (IS_WINDOWS) libraryName = OS_NAME.startsWith("Windows CE") ? "coredll" : "msvcrt";
         else if (isLinux) libraryName = "libc.so.6";
         else libraryName = "c";
         // libc lookup
