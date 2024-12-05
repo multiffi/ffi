@@ -12,4 +12,7 @@ tasks.withType(JavaExec).configureEach {
 dependencies {
     api project(':core')
     implementation project(':core')
+
+    api 'org.ow2.asm:asm:9.7.1'
+    implementation 'org.ow2.asm:asm:9.7.1'
 }

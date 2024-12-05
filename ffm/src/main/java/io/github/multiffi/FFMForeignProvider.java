@@ -1,6 +1,7 @@
 package io.github.multiffi;
 
 import multiffi.CallOption;
+import multiffi.Foreign;
 import multiffi.ForeignType;
 import multiffi.FunctionPointer;
 import multiffi.MemoryBlock;
@@ -492,8 +493,26 @@ public class FFMForeignProvider extends ForeignProvider {
         return new FFMFunctionPointer(address, firstVarArg, returnType, parameterTypes, options);
     }
 
+    private static MemorySegment blockToSegment(MemoryBlock block) {
+        if (block == null || MemoryBlock.NULL.equals(block)) return MemorySegment.NULL;
+        if (block.isDirect()) return MemorySegment.ofAddress(block.address())
+                .reinterpret(block.isBounded() ? block.size() : Foreign.addressSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE);
+        else {
+            Object array = block.array();
+            return switch (array) {
+                case byte[] byteArray -> MemorySegment.ofArray(byteArray);
+                case short[] shortArray -> MemorySegment.ofArray(shortArray);
+                case int[] intArray -> MemorySegment.ofArray(intArray);
+                case long[] longArray -> MemorySegment.ofArray(longArray);
+                case float[] floatArray -> MemorySegment.ofArray(floatArray);
+                case double[] doubleArray -> MemorySegment.ofArray(doubleArray);
+                case char[] charArray -> MemorySegment.ofArray(charArray);
+                case null, default -> throw new IllegalStateException("Unexpected exception");
+            };
+        }
+    }
     private static MemoryBlock segmentToBlock(MemorySegment segment) {
-        if (MemorySegment.NULL.equals(segment)) return MemoryBlock.NULL;
+        if (segment == null || MemorySegment.NULL.equals(segment)) return MemoryBlock.NULL;
         else if (segment.isNative()) return MemoryBlock.wrap(segment.address(), segment.byteSize());
         else {
             Object array = segment.heapBase().orElse(null);
@@ -509,10 +528,12 @@ public class FFMForeignProvider extends ForeignProvider {
             };
         }
     }
-
-    private static final MethodHandle SEGMENT_TO_BLOCK;
+    static final MethodHandle BLOCK_TO_SEGMENT;
+    static final MethodHandle SEGMENT_TO_BLOCK;
     static {
         try {
+            BLOCK_TO_SEGMENT = MethodHandles.lookup().findStatic(FFMForeignProvider.class, "blockToSegment",
+                    MethodType.methodType(MemorySegment.class, MemoryBlock.class));
             SEGMENT_TO_BLOCK = MethodHandles.lookup().findStatic(FFMForeignProvider.class, "segmentToBlock",
                     MethodType.methodType(MemoryBlock.class, MemorySegment.class));
         } catch (NoSuchMethodException | IllegalAccessException e) {
@@ -539,6 +560,8 @@ public class FFMForeignProvider extends ForeignProvider {
             if (MemoryBlock.class.isAssignableFrom(methodType.parameterType(i)))
                 methodHandle = MethodHandles.filterArguments(methodHandle, i, SEGMENT_TO_BLOCK);
         }
+        if (MemoryBlock.class.isAssignableFrom(methodType.returnType()))
+            methodHandle = MethodHandles.filterReturnValue(methodHandle, BLOCK_TO_SEGMENT);
         if (Modifier.isStatic(method.getModifiers())) object = method.getDeclaringClass();
         else methodHandle = methodHandle.bindTo(object);
         Arena arena = Arena.ofShared();
