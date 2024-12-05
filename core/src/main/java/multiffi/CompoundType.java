@@ -248,7 +248,7 @@ public final class CompoundType extends ForeignType {
 
     private static long unsignedAddExact(long x, long y) {
         long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0 && Long.compareUnsigned(y, sum) > 0) throw new ArithmeticException("long overflow");
+        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
         return sum;
     }
 
