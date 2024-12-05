@@ -15,11 +15,11 @@ public final class Limits {
     public static final int   INT32_MIN   = Integer.MIN_VALUE;
     public static final int   INT32_MAX   = Integer.MAX_VALUE;
     public static final int   UINT32_MIN  = 0;
-    public static final int   UINT32_MAX  = 0xFFFFFF;
+    public static final int   UINT32_MAX  = 0xFFFFFFFF;
     public static final long  INT64_MIN   = Long.MIN_VALUE;
     public static final long  INT64_MAX   = Long.MAX_VALUE;
     public static final long  UINT64_MIN  = 0;
-    public static final long  UINT64_MAX  = 0xFFFFFFFFL;
+    public static final long  UINT64_MAX  = 0xFFFFFFFFFFFFFFFFL;
     public static final long  USHORT_MAX  = Foreign.shortSize() == 8 ? UINT64_MAX : UINT16_MAX;
     public static final long  UINT_MAX    = Foreign.intSize() == 8 ? UINT64_MAX : UINT32_MAX;
     public static final long  ULONG_MAX   = Foreign.longSize() == 8 ? UINT64_MAX : UINT32_MAX;

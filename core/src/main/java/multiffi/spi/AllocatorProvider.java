@@ -3,7 +3,6 @@ package multiffi.spi;
 import multiffi.Foreign;
 import multiffi.Limits;
 
-import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.Objects;
 import java.util.ServiceLoader;
