@@ -24,7 +24,7 @@ public final class CompoundType extends ForeignType {
             }
             Member last = list.get(length - 1);
             return new CompoundType(Collections.unmodifiableList(list), -1,
-                    unsignedAddExact(last.getOffset(), unsignedAddExact(last.size(), padding)));
+                    Util.unsignedAddExact(last.getOffset(), Util.unsignedAddExact(last.size(), padding)));
         }
     }
 
@@ -46,7 +46,7 @@ public final class CompoundType extends ForeignType {
             }
             Member last = list.get(length - 1);
             return new CompoundType(Collections.unmodifiableList(list), -1,
-                    unsignedAddExact(last.getOffset(), unsignedAddExact(last.size(), padding)));
+                    Util.unsignedAddExact(last.getOffset(), Util.unsignedAddExact(last.size(), padding)));
         }
     }
 
@@ -68,19 +68,19 @@ public final class CompoundType extends ForeignType {
             Member first = new Member(type, offset, repetitions[repetitionsOffset]);
             long alignment = first.getType().size();
             list.add(first);
-            offset = unsignedAddExact(offset, first.size());
+            offset = Util.unsignedAddExact(offset, first.size());
             for (int i = 1; i < length; i ++) {
-                long size = unsignedMin(Foreign.addressSize(), align(types[i + typesOffset]));
+                long size = Util.unsignedMin(Foreign.addressSize(), align(types[i + typesOffset]));
                 long left = Long.remainderUnsigned(offset, size);
-                if (Long.compareUnsigned(left, 0) > 0) offset = unsignedAddExact(offset, size - left);
+                if (Long.compareUnsigned(left, 0) > 0) offset = Util.unsignedAddExact(offset, size - left);
                 Member member = new Member(types[i + typesOffset], offset, repetitions[i + repetitionsOffset]);
                 alignment = Math.max(alignment, size);
                 list.add(member);
-                offset = unsignedAddExact(offset, member.size());
+                offset = Util.unsignedAddExact(offset, member.size());
             }
             if (length != 1) {
                 long left = Long.remainderUnsigned(list.get(list.size() - 1).getType().size(), alignment);
-                if (left != 0) offset = unsignedAddExact(offset, alignment - left);
+                if (left != 0) offset = Util.unsignedAddExact(offset, alignment - left);
                 return new CompoundType(Collections.unmodifiableList(list), 0, offset);
             }
             else return new CompoundType(Collections.unmodifiableList(list), 0, offset);
@@ -91,7 +91,7 @@ public final class CompoundType extends ForeignType {
         if (type instanceof CompoundType) {
             long size = 0;
             for (Member member : ((CompoundType) type).members) {
-                size = unsignedMax(size, align(member.getType()));
+                size = Util.unsignedMax(size, align(member.getType()));
             }
             return size;
         }
@@ -125,11 +125,11 @@ public final class CompoundType extends ForeignType {
             for (int i = 0; i < length; i ++) {
                 Member member = new Member(types[i + typesOffset], 0, repetitions[i + repetitionsOffset]);
                 list.add(member);
-                alignment = unsignedMax(alignment, member.getType().size());
-                size = unsignedMax(size, member.size());
+                alignment = Util.unsignedMax(alignment, member.getType().size());
+                size = Util.unsignedMax(size, member.size());
             }
             if (Long.remainderUnsigned(size, alignment) != 0)
-                size = unsignedMultiplyExact(size / (alignment + 1), alignment);
+                size = Util.unsignedMultiplyExact(size / (alignment + 1), alignment);
             return new CompoundType(Collections.unmodifiableList(list), 1, size);
         }
     }
@@ -154,7 +154,7 @@ public final class CompoundType extends ForeignType {
     public static CompoundType ofArray(ForeignType type, long repetition) {
         if (repetition == 0) return EMPTY;
         else return new CompoundType(Collections.singletonList(new Member(type, 0, repetition)), 2,
-                unsignedMultiplyExact(type.size(), repetition));
+                Util.unsignedMultiplyExact(type.size(), repetition));
     }
     
     private final List<Member> members;
@@ -206,10 +206,9 @@ public final class CompoundType extends ForeignType {
         return false;
     }
 
-    private static final Member[] EMPTY_MEMBER_ARRAY = new Member[0];
     @Override
     public Member[] getMembers() {
-        return members.toArray(EMPTY_MEMBER_ARRAY);
+        return members.toArray(Member.EMPTY_MEMBER_ARRAY);
     }
 
     @Override
@@ -222,64 +221,4 @@ public final class CompoundType extends ForeignType {
         return isArray() ? members.get(0).getType() : null;
     }
 
-    private static long unsignedMin(long a, long b) {
-        if (a == 0) return a;
-        else if (b == 0) return b;
-        else {
-            int s1 = Long.signum(a);
-            int s2 = Long.signum(b);
-            if (s1 == s2) return Math.min(a, b);
-            else if (s1 < s2) return b;
-            else return a;
-        }
-    }
-
-    private static long unsignedMax(long a, long b) {
-        if (a == 0) return b;
-        else if (b == 0) return a;
-        else {
-            int s1 = Long.signum(a);
-            int s2 = Long.signum(b);
-            if (s1 == s2) return Math.max(a, b);
-            else if (s1 < s2) return a;
-            else return b;
-        }
-    }
-
-    private static long unsignedAddExact(long x, long y) {
-        long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
-        return sum;
-    }
-
-    private static long multiplyHigh(long x, long y) {
-        // Use technique from section 8-2 of Henry S. Warren, Jr.,
-        // Hacker's Delight (2nd ed.) (Addison Wesley, 2013), 173-174.
-        long x1 = x >> 32;
-        long x2 = x & 0xFFFFFFFFL;
-        long y1 = y >> 32;
-        long y2 = y & 0xFFFFFFFFL;
-
-        long z2 = x2 * y2;
-        long t = x1 * y2 + (z2 >>> 32);
-        long z1 = t & 0xFFFFFFFFL;
-        long z0 = t >> 32;
-        z1 += x2 * y1;
-
-        return x1 * y1 + z0 + (z1 >> 32);
-    }
-
-    private static long unsignedMultiplyHigh(long x, long y) {
-        long result = multiplyHigh(x, y);
-        result += (y & (x >> 63)); // equivalent to `if (x < 0) result += y;`
-        result += (x & (y >> 63)); // equivalent to `if (y < 0) result += x;`
-        return result;
-    }
-
-    private static long unsignedMultiplyExact(long x, long y) {
-        long hi = unsignedMultiplyHigh(x, y);
-        if (hi != 0) throw new ArithmeticException("long overflow");
-        return x * y;
-    }
-    
 }

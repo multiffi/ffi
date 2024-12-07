@@ -22,11 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static io.github.multiffi.FFMForeignProvider.BLOCK_TO_SEGMENT;
-import static io.github.multiffi.FFMForeignProvider.ERRNO_THREAD_LOCAL;
-import static io.github.multiffi.FFMForeignProvider.IS_WINDOWS;
-import static io.github.multiffi.FFMForeignProvider.toMemoryLayout;
-
 public class FFMFunctionPointer extends FunctionPointer {
 
     private static final Linker LINKER = Linker.nativeLinker();
@@ -35,6 +30,8 @@ public class FFMFunctionPointer extends FunctionPointer {
     private final List<ForeignType> parameterTypes;
     private final ForeignType returnType;
     private final MethodHandle methodHandle;
+    private final boolean critical;
+    private final boolean trivial;
     private final boolean saveErrno;
     private final boolean throwErrno;
 
@@ -44,6 +41,7 @@ public class FFMFunctionPointer extends FunctionPointer {
         boolean saveErrno = false;
         boolean throwErrno = false;
         boolean critical = false;
+        boolean trivial = false;
         Set<Linker.Option> linkerOptions = new HashSet<>(3);
         for (CallOption option : options) {
             switch (option) {
@@ -51,11 +49,12 @@ public class FFMFunctionPointer extends FunctionPointer {
                     throwErrno = true;
                 case StandardCallOption.SAVE_ERRNO:
                     saveErrno = true;
-                    linkerOptions.add(Linker.Option.captureCallState(IS_WINDOWS ? "GetLastError" : "errno"));
+                    linkerOptions.add(Linker.Option.captureCallState(FFMUtil.ErrnoHolder.ERRNO_NAME));
                     break;
-                case ExtendedCallOption.CRITICAL:
+                case StandardCallOption.TRIVIAL:
+                    trivial = true;
+                case StandardCallOption.CRITICAL:
                     critical = true;
-                    linkerOptions.add(Linker.Option.critical(true));
                     break;
                 case StandardCallOption.STDCALL:
                     break;
@@ -63,14 +62,20 @@ public class FFMFunctionPointer extends FunctionPointer {
                     throw new IllegalArgumentException(option + " not supported");
             }
         }
-        if (firstVarArg >= 0) linkerOptions.add(Linker.Option.firstVariadicArg(firstVarArg));
+        if (saveErrno && critical) {
+            critical = false;
+            trivial = false;
+        }
+        if (critical) linkerOptions.add(Linker.Option.critical(!trivial));
+        this.critical = critical;
+        this.trivial = trivial;
         this.saveErrno = saveErrno;
         this.throwErrno = throwErrno;
-        if (saveErrno && critical) throw new IllegalArgumentException("SAVE_ERRNO or THROW_ERRNO can not be combined with CRITICAL");
-        MemoryLayout returnLayout = returnType == ForeignType.VOID ? null : toMemoryLayout(returnType);
+        if (firstVarArg >= 0) linkerOptions.add(Linker.Option.firstVariadicArg(firstVarArg));
+        MemoryLayout returnLayout = returnType == ForeignType.VOID ? null : FFMUtil.toMemoryLayout(returnType);
         MemoryLayout[] parameterLayouts = new MemoryLayout[parameterTypes.length];
         for (int i = 0; i < parameterTypes.length; i ++) {
-            parameterLayouts[i] = toMemoryLayout(parameterTypes[i]);
+            parameterLayouts[i] = FFMUtil.toMemoryLayout(parameterTypes[i]);
         }
         boolean addReturnMemoryParameter = returnType != null && returnType.isCompound();
         List<ForeignType> parameterTypeList = new ArrayList<>(parameterTypes.length + (addReturnMemoryParameter ? 1 : 0));
@@ -83,7 +88,7 @@ public class FFMFunctionPointer extends FunctionPointer {
                 linkerOptions.toArray(EMPTY_OPTION_ARRAY));
         for (int i = (addReturnMemoryParameter ? 1 : 0); i < parameterTypeList.size(); i ++) {
             if (parameterTypeList.get(i).isCompound()) methodHandle = MethodHandles
-                    .filterArguments(methodHandle, i + (saveErrno ? 1 : 0), BLOCK_TO_SEGMENT);
+                    .filterArguments(methodHandle, i + (saveErrno ? 1 : 0), FFMUtil.MarshallerHolder.BLOCK_TO_SEGMENT);
         }
         this.methodHandle = methodHandle;
     }
@@ -106,6 +111,26 @@ public class FFMFunctionPointer extends FunctionPointer {
     @Override
     public boolean isStdCall() {
         return false;
+    }
+
+    @Override
+    public boolean isCritical() {
+        return critical && !trivial;
+    }
+
+    @Override
+    public boolean isTrivial() {
+        return trivial;
+    }
+
+    @Override
+    public boolean isSaveErrno() {
+        return saveErrno && !throwErrno;
+    }
+
+    @Override
+    public boolean isThrowErrno() {
+        return throwErrno;
     }
 
     @Override
@@ -164,14 +189,14 @@ public class FFMFunctionPointer extends FunctionPointer {
         try {
             if (saveErrno) {
                 Object[] arguments = new Object[args.length + 1];
-                arguments[0] = SegmentAllocator.slicingAllocator((MemorySegment) BLOCK_TO_SEGMENT.invokeExact(result));
-                arguments[1] = ERRNO_THREAD_LOCAL.get();
+                arguments[0] = SegmentAllocator.slicingAllocator((MemorySegment) FFMUtil.MarshallerHolder.BLOCK_TO_SEGMENT.invokeExact(result));
+                arguments[1] = FFMUtil.ErrnoHolder.ERRNO_THREAD_LOCAL.get();
                 System.arraycopy(args, 1, arguments, 2, args.length - 1);
                 methodHandle.invokeWithArguments(arguments);
                 if (throwErrno) throw new ErrnoException();
             }
             else {
-                args[0] = SegmentAllocator.slicingAllocator((MemorySegment) BLOCK_TO_SEGMENT.invokeExact(result));
+                args[0] = SegmentAllocator.slicingAllocator((MemorySegment) FFMUtil.MarshallerHolder.BLOCK_TO_SEGMENT.invokeExact(result));
                 methodHandle.invokeWithArguments(args);
             }
             return result;
@@ -189,7 +214,7 @@ public class FFMFunctionPointer extends FunctionPointer {
             if (saveErrno) {
                 Object result;
                 Object[] arguments = new Object[args.length + 1];
-                arguments[0] = ERRNO_THREAD_LOCAL.get();
+                arguments[0] = FFMUtil.ErrnoHolder.ERRNO_THREAD_LOCAL.get();
                 System.arraycopy(args, 0, arguments, 1, args.length);
                 result = methodHandle.invokeWithArguments(arguments);
                 if (throwErrno) throw new ErrnoException();

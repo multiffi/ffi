@@ -24,7 +24,7 @@ import java.nio.charset.Charset;
  */
 public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoCloseable {
 
-    public static final MemoryBlock NULL = MemoryBlock.wrap(0);
+    public static final MemoryBlock NIL = MemoryBlock.wrap(0);
 
     /**
      * Wraps a Java {@code byte} array in a {@link MemoryBlock} instance.
@@ -2010,12 +2010,22 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
         return attachment() == null;
     }
 
-    public abstract boolean isNullPointer();
+    public abstract boolean isNil();
+
+    @Override
+    public boolean equals(Object object) {
+        if (!(object instanceof MemoryBlock)) return false;
+
+        MemoryBlock that = (MemoryBlock) object;
+        if (isNil()) return that.isNil();
+        else if (isDirect()) return that.isDirect() && address() == that.address();
+        else return array() == that.array() && arrayOffset() == that.arrayOffset();
+    }
 
     @Override
     public int compareTo(MemoryBlock other) {
-        if (isNullPointer()) return other.isNullPointer() ? 0 : -1;
-        else if (other.isNullPointer()) return isNullPointer() ? 0 : 1;
+        if (isNil()) return other.isNil() ? 0 : -1;
+        else if (other.isNil()) return isNil() ? 0 : 1;
         else if (isBounded() && other.isBounded()) {
             long size = size();
             long otherSize = other.size();
@@ -2083,7 +2093,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
 
     public int compareTo(MemoryBlock other, long offset, long size) {
         if (size == 0) return 0;
-        else if (isNullPointer() && other.isNullPointer()) return 0;
+        else if (isNil() && other.isNil()) return 0;
         else if (isDirect() && other.isDirect()) return Allocator.compare(address(), other.address(), size);
         else return compare(other, offset, size);
     }

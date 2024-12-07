@@ -104,10 +104,10 @@ public abstract class ForeignProvider {
         return getErrorString(getLastErrno());
     }
 
-    private static final CallOption[] EMPTY_CALL_OPTIONS = new CallOption[0];
+    private static final CallOption[] EMPTY_CALL_OPTION_ARRAY = new CallOption[0];
     public abstract FunctionPointer downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
     public FunctionPointer downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallHandle(address, firstVarArg, returnType, parameterTypes, EMPTY_CALL_OPTIONS);
+        return downcallHandle(address, firstVarArg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
     public FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return downcallHandle(address, -1, returnType, parameterTypes, options);
@@ -117,7 +117,7 @@ public abstract class ForeignProvider {
     }
     public abstract long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
     public long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
-        return upcallStub(object, method, firstVarArg, returnType, parameterTypes, EMPTY_CALL_OPTIONS);
+        return upcallStub(object, method, firstVarArg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
     public long upcallStub(Object object, Method method, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return upcallStub(object, method, -1, returnType, parameterTypes, options);

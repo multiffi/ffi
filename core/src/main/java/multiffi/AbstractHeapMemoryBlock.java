@@ -136,7 +136,7 @@ public abstract class AbstractHeapMemoryBlock extends MemoryBlock {
         checkBounds(destOffset, size);
         srcMemoryBlock.checkBounds(srcOffset, size);
         if (srcMemoryBlock.hasArray()) Allocator.copy(array(), destOffset, srcMemoryBlock.array(), srcOffset, size);
-        else Allocator.copy(array(), destOffset, unsignedAddExact(srcMemoryBlock.address(), srcOffset), size);
+        else Allocator.copy(array(), destOffset, Util.unsignedAddExact(srcMemoryBlock.address(), srcOffset), size);
     }
 
     @Override
@@ -151,7 +151,7 @@ public abstract class AbstractHeapMemoryBlock extends MemoryBlock {
 
     @Override
     public void checkBounds(long offset, long size) throws IndexOutOfBoundsException {
-        long index = unsignedAddExact(offset, size);
+        long index = Util.unsignedAddExact(offset, size);
         if (index < 0 || index > size()) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
     }
 
@@ -162,7 +162,7 @@ public abstract class AbstractHeapMemoryBlock extends MemoryBlock {
 
     @Override
     public boolean inBounds(long offset, long size) {
-        long index = unsignedAddExact(offset, size);
+        long index = Util.unsignedAddExact(offset, size);
         return index >= 0 && index < size();
     }
 
@@ -216,12 +216,6 @@ public abstract class AbstractHeapMemoryBlock extends MemoryBlock {
         checkBounds(offset, valueSize);
         long index = offset + arrayOffset();
         return Allocator.search(array(), index, valueArray, valueArrayOffset, valueSize, maxLength) - arrayOffset();
-    }
-
-    private static long unsignedAddExact(long x, long y) {
-        long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
-        return sum;
     }
 
 }

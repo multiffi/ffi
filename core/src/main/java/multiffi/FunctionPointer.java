@@ -9,6 +9,10 @@ public abstract class FunctionPointer {
     public abstract List<ForeignType> getParameterTypes();
     public abstract ForeignType getReturnType();
     public abstract boolean isStdCall();
+    public abstract boolean isCritical();
+    public abstract boolean isTrivial();
+    public abstract boolean isSaveErrno();
+    public abstract boolean isThrowErrno();
 
     public abstract void invokeVoid(Object... args);
     public abstract boolean invokeBoolean(Object... args);

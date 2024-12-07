@@ -161,7 +161,7 @@ public abstract class AbstractDirectMemoryBlock extends MemoryBlock {
 
     @Override
     public void checkBounds(long offset, long size) throws IndexOutOfBoundsException {
-        long index = unsignedAddExact(offset, size);
+        long index = Util.unsignedAddExact(offset, size);
         if (Long.compareUnsigned(index, size()) > 0) throw new IndexOutOfBoundsException("Index out of range: " + Long.toUnsignedString(index));
     }
 
@@ -172,7 +172,7 @@ public abstract class AbstractDirectMemoryBlock extends MemoryBlock {
 
     @Override
     public boolean inBounds(long offset, long size) {
-        long index = unsignedAddExact(offset, size);
+        long index = Util.unsignedAddExact(offset, size);
         return Long.compareUnsigned(index, size()) < 0;
     }
 
@@ -229,14 +229,8 @@ public abstract class AbstractDirectMemoryBlock extends MemoryBlock {
     }
 
     @Override
-    public boolean isNullPointer() {
+    public boolean isNil() {
         return address() == 0;
-    }
-
-    private static long unsignedAddExact(long x, long y) {
-        long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
-        return sum;
     }
 
 }

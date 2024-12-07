@@ -93,16 +93,14 @@ public final class ScalarType extends ForeignType {
         return true;
     }
 
-    private static final Member[] EMPTY_MEMBER_ARRAY = new Member[0];
-
     @Override
     public Member getMember(int index) throws IndexOutOfBoundsException {
-        return EMPTY_MEMBER_ARRAY[index];
+        return Member.EMPTY_MEMBER_ARRAY[index];
     }
 
     @Override
     public Member[] getMembers() {
-        return EMPTY_MEMBER_ARRAY;
+        return Member.EMPTY_MEMBER_ARRAY;
     }
 
     @Override

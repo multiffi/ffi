@@ -39,6 +39,12 @@ public class HeapMemoryBlock extends AbstractHeapMemoryBlock {
         else throw new IllegalStateException("Unexpected exception");
     }
 
+    private static long unsignedAddExact(long x, long y) {
+        long sum = x + y;
+        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
+        return sum;
+    }
+
     @Override
     public long size() {
         return size;
@@ -84,19 +90,13 @@ public class HeapMemoryBlock extends AbstractHeapMemoryBlock {
     }
 
     @Override
-    public boolean isNullPointer() {
+    public boolean isNil() {
         return size == 0 || array() == null;
     }
 
     @Override
     public void close() {
         arrayRef.set(null);
-    }
-
-    private static long unsignedAddExact(long x, long y) {
-        long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
-        return sum;
     }
 
 }
