@@ -1,6 +1,6 @@
 package multiffi;
 
-public abstract class AbstractDirectMemoryBlock extends MemoryBlock {
+public abstract class AbstractDirectMemoryHandle extends MemoryHandle {
 
     @Override
     public boolean isDirect() {
@@ -129,29 +129,29 @@ public abstract class AbstractDirectMemoryBlock extends MemoryBlock {
     }
 
     @Override
-    public void transferTo(long srcOffset, MemoryBlock destMemoryBlock, long destOffset, long size) {
+    public void transferTo(long srcOffset, MemoryHandle destMemoryHandle, long destOffset, long size) {
         checkBounds(srcOffset, size);
-        destMemoryBlock.checkBounds(destOffset, size);
-        if (destMemoryBlock.isDirect()) Allocator.copy(destMemoryBlock.address() + destOffset, address() + srcOffset, size);
-        else Allocator.copy(destMemoryBlock.array(), destOffset, address() + srcOffset, size);
+        destMemoryHandle.checkBounds(destOffset, size);
+        if (destMemoryHandle.isDirect()) Allocator.copy(destMemoryHandle.address() + destOffset, address() + srcOffset, size);
+        else Allocator.copy(destMemoryHandle.array(), destOffset, address() + srcOffset, size);
     }
 
     @Override
-    public void transferTo(MemoryBlock destMemoryBlock, long size) {
-        transferTo(0, destMemoryBlock, 0, size);
+    public void transferTo(MemoryHandle destMemoryHandle, long size) {
+        transferTo(0, destMemoryHandle, 0, size);
     }
 
     @Override
-    public void transferFrom(long destOffset, MemoryBlock srcMemoryBlock, long srcOffset, long size) {
+    public void transferFrom(long destOffset, MemoryHandle srcMemoryHandle, long srcOffset, long size) {
         checkBounds(destOffset, size);
-        srcMemoryBlock.checkBounds(srcOffset, size);
-        if (srcMemoryBlock.isDirect()) Allocator.copy(address() + destOffset, srcMemoryBlock.address() + srcOffset, size);
-        else Allocator.copy(address() + destOffset, srcMemoryBlock.array(), srcOffset, size);
+        srcMemoryHandle.checkBounds(srcOffset, size);
+        if (srcMemoryHandle.isDirect()) Allocator.copy(address() + destOffset, srcMemoryHandle.address() + srcOffset, size);
+        else Allocator.copy(address() + destOffset, srcMemoryHandle.array(), srcOffset, size);
     }
 
     @Override
-    public void transferFrom(MemoryBlock srcMemoryBlock, long size) {
-        transferFrom(0, srcMemoryBlock, 0, size);
+    public void transferFrom(MemoryHandle srcMemoryHandle, long size) {
+        transferFrom(0, srcMemoryHandle, 0, size);
     }
 
     @Override

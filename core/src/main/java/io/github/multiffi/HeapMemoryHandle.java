@@ -1,18 +1,18 @@
 package io.github.multiffi;
 
-import multiffi.AbstractHeapMemoryBlock;
-import multiffi.MemoryBlock;
+import multiffi.AbstractHeapMemoryHandle;
+import multiffi.MemoryHandle;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class HeapMemoryBlock extends AbstractHeapMemoryBlock {
+public class HeapMemoryHandle extends AbstractHeapMemoryHandle {
 
     private final AtomicReference<Object> arrayRef = new AtomicReference<>();
     private final long arrayOffset;
     private final long arrayLength;
     private final long size;
 
-    public HeapMemoryBlock(Object array, long offset, long size) {
+    public HeapMemoryHandle(Object array, long offset, long size) {
         if (array == null) this.arrayLength = 0;
         else {
             this.arrayLength = getArrayContentSize(array);
@@ -66,26 +66,26 @@ public class HeapMemoryBlock extends AbstractHeapMemoryBlock {
     }
 
     @Override
-    public MemoryBlock slice(long offset) {
+    public MemoryHandle slice(long offset) {
         checkBounds(arrayOffset, offset);
-        return new HeapMemoryBlock(array(), arrayOffset + offset, size - offset);
+        return new HeapMemoryHandle(array(), arrayOffset + offset, size - offset);
     }
 
     @Override
-    public MemoryBlock slice(long offset, long size) {
+    public MemoryHandle slice(long offset, long size) {
         checkBounds(arrayOffset, offset);
         long index = arrayOffset + offset;
         checkBounds(index, size);
-        return new HeapMemoryBlock(array(), index, size);
+        return new HeapMemoryHandle(array(), index, size);
     }
 
     @Override
-    public MemoryBlock duplicate() {
-        return new HeapMemoryBlock(array(), arrayOffset, size);
+    public MemoryHandle duplicate() {
+        return new HeapMemoryHandle(array(), arrayOffset, size);
     }
 
     @Override
-    public MemoryBlock attachment() {
+    public MemoryHandle attachment() {
         return null;
     }
 

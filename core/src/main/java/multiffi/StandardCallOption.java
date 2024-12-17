@@ -4,6 +4,5 @@ public enum StandardCallOption implements CallOption {
     STDCALL,
     CRITICAL,
     TRIVIAL,
-    SAVE_ERRNO,
-    THROW_ERRNO
+    SAVE_ERRNO
 }

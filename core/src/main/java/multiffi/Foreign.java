@@ -171,6 +171,22 @@ public final class Foreign {
         return IMPLEMENTATION.downcallHandle(address, returnType, parameterTypes);
     }
 
+    public static Object downcallProxy(ClassLoader classLoader, Class<?>... classes) {
+        return IMPLEMENTATION.downcallProxy(classLoader, classes);
+    }
+
+    public static Object downcallProxy(Class<?>... classes) {
+        return IMPLEMENTATION.downcallProxy(classes);
+    }
+
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz);
+    }
+
+    public static <T> T downcallProxy(Class<T> clazz) {
+        return IMPLEMENTATION.downcallProxy(clazz);
+    }
+
     public static long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return IMPLEMENTATION.upcallStub(object, method, firstVarArg, returnType, parameterTypes, options);
     }

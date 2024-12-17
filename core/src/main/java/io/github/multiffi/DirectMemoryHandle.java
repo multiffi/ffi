@@ -1,17 +1,17 @@
 package io.github.multiffi;
 
-import multiffi.AbstractDirectMemoryBlock;
+import multiffi.AbstractDirectMemoryHandle;
 import multiffi.Allocator;
-import multiffi.MemoryBlock;
+import multiffi.MemoryHandle;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class DirectMemoryBlock extends AbstractDirectMemoryBlock {
+public class DirectMemoryHandle extends AbstractDirectMemoryHandle {
 
     private final AtomicLong addressRef = new AtomicLong();
     private final long size;
 
-    public DirectMemoryBlock(long address, long size) {
+    public DirectMemoryHandle(long address, long size) {
         this.addressRef.set(address);
         this.size = size;
     }
@@ -27,24 +27,24 @@ public class DirectMemoryBlock extends AbstractDirectMemoryBlock {
     }
 
     @Override
-    public MemoryBlock slice(long offset) {
+    public MemoryHandle slice(long offset) {
         checkBounds(offset);
-        return new DirectSliceMemoryBlock(this, offset, size == -1 ? -1 : size - offset);
+        return new DirectSliceMemoryHandle(this, offset, size == -1 ? -1 : size - offset);
     }
 
     @Override
-    public MemoryBlock slice(long offset, long size) {
+    public MemoryHandle slice(long offset, long size) {
         checkBounds(offset, size);
-        return new DirectSliceMemoryBlock(this, offset, size);
+        return new DirectSliceMemoryHandle(this, offset, size);
     }
 
     @Override
-    public MemoryBlock duplicate() {
-        return new DirectSliceMemoryBlock(this, 0, size);
+    public MemoryHandle duplicate() {
+        return new DirectSliceMemoryHandle(this, 0, size);
     }
 
     @Override
-    public MemoryBlock attachment() {
+    public MemoryHandle attachment() {
         return null;
     }
 

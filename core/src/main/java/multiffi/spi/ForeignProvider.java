@@ -105,9 +105,9 @@ public abstract class ForeignProvider {
     }
 
     private static final CallOption[] EMPTY_CALL_OPTION_ARRAY = new CallOption[0];
-    public abstract FunctionPointer downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
-    public FunctionPointer downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallHandle(address, firstVarArg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public abstract FunctionPointer downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
+    public FunctionPointer downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallHandle(address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
     public FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return downcallHandle(address, -1, returnType, parameterTypes, options);
@@ -115,9 +115,20 @@ public abstract class ForeignProvider {
     public FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType... parameterTypes) {
         return downcallHandle(address, -1, returnType, parameterTypes);
     }
-    public abstract long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
-    public long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
-        return upcallStub(object, method, firstVarArg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public abstract Object downcallProxy(ClassLoader classLoader, Class<?>... classes);
+    public Object downcallProxy(Class<?>... classes) {
+        return downcallProxy(null, classes);
+    }
+    @SuppressWarnings("unchecked")
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
+        return (T) downcallProxy(classLoader, new Class<?>[] { clazz });
+    }
+    public <T> T downcallProxy(Class<T> clazz) {
+        return downcallProxy(null, clazz);
+    }
+    public abstract long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
+    public long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return upcallStub(object, method, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
     public long upcallStub(Object object, Method method, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return upcallStub(object, method, -1, returnType, parameterTypes, options);

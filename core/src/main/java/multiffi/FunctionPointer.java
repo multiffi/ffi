@@ -12,7 +12,6 @@ public abstract class FunctionPointer {
     public abstract boolean isCritical();
     public abstract boolean isTrivial();
     public abstract boolean isSaveErrno();
-    public abstract boolean isThrowErrno();
 
     public abstract void invokeVoid(Object... args);
     public abstract boolean invokeBoolean(Object... args);
@@ -25,7 +24,7 @@ public abstract class FunctionPointer {
     public abstract float invokeFloat(Object... args);
     public abstract double invokeDouble(Object... args);
     public abstract long invokeAddress(Object... args);
-    public abstract MemoryBlock invokeCompound(Object... args);
+    public abstract MemoryHandle invokeCompound(Object... args);
     public abstract Object invoke(Object... args);
 
     private abstract static class InvokeAdapter {

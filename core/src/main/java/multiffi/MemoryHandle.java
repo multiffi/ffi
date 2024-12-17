@@ -1,7 +1,7 @@
 package multiffi;
 
-import io.github.multiffi.DirectMemoryBlock;
-import io.github.multiffi.HeapMemoryBlock;
+import io.github.multiffi.DirectMemoryHandle;
+import io.github.multiffi.HeapMemoryHandle;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -16,314 +16,314 @@ import java.nio.charset.Charset;
  * A wrapper class which represents a block of memory.
  * 
  * <p>This class provides operations on a block of memory.
- * {@code MemoryBlock} instances will either represent direct
+ * {@code MemoryHandle} instances will either represent direct
  * memory (that is, a fixed address in the process address space,
  * directly accessible by native code), or backed by at least one
  * Java <code>byte</code> array.
  * See {@link #isDirect()}, {@link #hasArray()} for more information.
  */
-public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoCloseable {
+public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoCloseable {
 
-    public static final MemoryBlock NIL = MemoryBlock.wrap(0);
+    public static final MemoryHandle NIL = MemoryHandle.wrap(0);
 
     /**
-     * Wraps a Java {@code byte} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code byte} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(byte[] array) {
+    public static MemoryHandle wrap(byte[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code byte} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code byte} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(byte[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, offset, length);
+    public static MemoryHandle wrap(byte[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, offset, length);
     }
 
     /**
-     * Wraps a Java {@code char} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code char} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(char[] array) {
+    public static MemoryHandle wrap(char[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code char} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code char} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(char[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, (long) offset << 1, (long) length << 1);
+    public static MemoryHandle wrap(char[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, (long) offset << 1, (long) length << 1);
     }
 
     /**
-     * Wraps a Java {@code short} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code short} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(short[] array) {
+    public static MemoryHandle wrap(short[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code short} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code short} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(short[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, (long) offset << 1, (long) length << 1);
+    public static MemoryHandle wrap(short[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, (long) offset << 1, (long) length << 1);
     }
 
     /**
-     * Wraps a Java {@code int} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code int} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(int[] array) {
+    public static MemoryHandle wrap(int[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code int} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code int} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(int[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, (long) offset << 2, (long) length << 2);
+    public static MemoryHandle wrap(int[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, (long) offset << 2, (long) length << 2);
     }
 
     /**
-     * Wraps a Java {@code long} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code long} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(long[] array) {
+    public static MemoryHandle wrap(long[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code long} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code long} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(long[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, (long) offset << 3, (long) length << 3);
+    public static MemoryHandle wrap(long[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, (long) offset << 3, (long) length << 3);
     }
 
     /**
-     * Wraps a Java {@code float} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code float} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(float[] array) {
+    public static MemoryHandle wrap(float[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code float} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code float} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(float[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, (long) offset << 2, (long) length << 2);
+    public static MemoryHandle wrap(float[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, (long) offset << 2, (long) length << 2);
     }
 
     /**
-     * Wraps a Java {@code double} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code double} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(double[] array) {
+    public static MemoryHandle wrap(double[] array) {
         return wrap(array, 0, array.length);
     }
 
     /**
-     * Wraps a Java {@code double} array in a {@link MemoryBlock} instance.
+     * Wraps a Java {@code double} array in a {@link MemoryHandle} instance.
      *
-     * @param array the {@code array} to wrap in a {@code MemoryBlock} instance.
+     * @param array the {@code array} to wrap in a {@code MemoryHandle} instance.
      * @param offset the offset of the array.
      * @param length the region length of the array.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(double[] array, int offset, int length) {
-        return new HeapMemoryBlock(array, (long) offset << 3, (long) length << 3);
+    public static MemoryHandle wrap(double[] array, int offset, int length) {
+        return new HeapMemoryHandle(array, (long) offset << 3, (long) length << 3);
     }
 
     /**
-     * Wraps a native address in a {@link MemoryBlock} instance.
+     * Wraps a native address in a {@link MemoryHandle} instance.
      *
-     * @param address the {@code address} to wrap in a {@code MemoryBlock} instance.
+     * @param address the {@code address} to wrap in a {@code MemoryHandle} instance.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(long address) {
+    public static MemoryHandle wrap(long address) {
         return wrap(address, -1);
     }
 
     /**
-     * Wraps a native address in a {@link MemoryBlock} instance.
+     * Wraps a native address in a {@link MemoryHandle} instance.
      *
-     * @param address the {@code address} to wrap in a MemoryBlock instance.
+     * @param address the {@code address} to wrap in a MemoryHandle instance.
      * @param size the size of the native memory region.
      *
-     * @return a {@code MemoryBlock} instance.
+     * @return a {@code MemoryHandle} instance.
      */
-    public static MemoryBlock wrap(long address, long size) {
-        return new DirectMemoryBlock(address, size);
+    public static MemoryHandle wrap(long address, long size) {
+        return new DirectMemoryHandle(address, size);
     }
 
     /**
-     * Wraps an existing ByteBuffer in a {@link MemoryBlock} implementation so it can
+     * Wraps an existing ByteBuffer in a {@link MemoryHandle} implementation so it can
      * be used as a parameter to native functions.
      *
      * <p>Wrapping a ByteBuffer is only necessary if the native function parameter
-     * was declared as a {@code MemoryBlock}.  The if the method will always be used
+     * was declared as a {@code MemoryHandle}.  The if the method will always be used
      * with {@code ByteBuffer} parameters, then the parameter type can just be declared
      * as {@code ByteBuffer} and the conversion will be performed automatically.
      *
      * @param buffer the {@code ByteBuffer} to wrap.
      *
-     * @return a {@code MemoryBlock} instance that will proxy all accesses to the ByteBuffer contents.
+     * @return a {@code MemoryHandle} instance that will proxy all accesses to the ByteBuffer contents.
      */
-    public static MemoryBlock wrap(ByteBuffer buffer) {
+    public static MemoryHandle wrap(ByteBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((byte[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
     /**
-     * Wraps an existing CharBuffer in a {@link MemoryBlock} implementation so it can
+     * Wraps an existing CharBuffer in a {@link MemoryHandle} implementation so it can
      * be used as a parameter to native functions.
      *
      * <p>Wrapping a CharBuffer is only necessary if the native function parameter
-     * was declared as a {@code MemoryBlock}.  The if the method will always be used
+     * was declared as a {@code MemoryHandle}.  The if the method will always be used
      * with {@code CharBuffer} parameters, then the parameter type can just be declared
      * as {@code CharBuffer} and the conversion will be performed automatically.
      *
      * @param buffer the {@code CharBuffer} to wrap.
      *
-     * @return a {@code MemoryBlock} instance that will proxy all accesses to the CharBuffer contents.
+     * @return a {@code MemoryHandle} instance that will proxy all accesses to the CharBuffer contents.
      */
-    public static MemoryBlock wrap(CharBuffer buffer) {
+    public static MemoryHandle wrap(CharBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((char[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
-    public static MemoryBlock wrap(ShortBuffer buffer) {
+    public static MemoryHandle wrap(ShortBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((short[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
-    public static MemoryBlock wrap(IntBuffer buffer) {
+    public static MemoryHandle wrap(IntBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((int[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
-    public static MemoryBlock wrap(LongBuffer buffer) {
+    public static MemoryHandle wrap(LongBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((long[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
-    public static MemoryBlock wrap(FloatBuffer buffer) {
+    public static MemoryHandle wrap(FloatBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((float[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
-    public static MemoryBlock wrap(DoubleBuffer buffer) {
+    public static MemoryHandle wrap(DoubleBuffer buffer) {
         if (buffer.isDirect()) return wrap(Buffers.address(buffer), buffer.capacity());
         else return wrap((double[]) Buffers.array(buffer), Buffers.arrayOffset(buffer), buffer.capacity());
     }
 
-    public static MemoryBlock allocate(long size) {
+    public static MemoryHandle allocate(long size) {
         if (size < Integer.MIN_VALUE || size > (Integer.MAX_VALUE - 8)) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(size));
         return wrap(new byte[(int) size]);
     }
 
-    public static MemoryBlock allocate(CharSequence string) {
+    public static MemoryHandle allocate(CharSequence string) {
         return allocate(string, null);
     }
 
-    public static MemoryBlock allocate(CharSequence string, Charset charset) {
+    public static MemoryHandle allocate(CharSequence string, Charset charset) {
         if (charset == null) charset = Foreign.ansiCharset();
         byte[] bytes;
         if (string instanceof String) bytes = ((String) string).getBytes(charset);
         else bytes = charset.encode(CharBuffer.wrap(string)).array();
         byte[] terminator = "\0".getBytes(charset);
-        MemoryBlock memoryBlock = allocate(bytes.length + terminator.length);
-        memoryBlock.setInt8Array(bytes.length, terminator);
-        memoryBlock.setInt8Array(0, bytes);
-        return memoryBlock;
+        MemoryHandle memoryHandle = allocate(bytes.length + terminator.length);
+        memoryHandle.setInt8Array(bytes.length, terminator);
+        memoryHandle.setInt8Array(0, bytes);
+        return memoryHandle;
     }
 
-    public static MemoryBlock allocateDirect(long size) {
+    public static MemoryHandle allocateDirect(long size) {
         return wrap(Allocator.allocate(size), size);
     }
 
-    public static MemoryBlock allocateDirect(CharSequence string) {
+    public static MemoryHandle allocateDirect(CharSequence string) {
         return allocateDirect(string, null);
     }
 
-    public static MemoryBlock allocateDirect(CharSequence string, Charset charset) {
+    public static MemoryHandle allocateDirect(CharSequence string, Charset charset) {
         if (charset == null) charset = Foreign.ansiCharset();
         byte[] bytes;
         if (string instanceof String) bytes = ((String) string).getBytes(charset);
         else bytes = charset.encode(CharBuffer.wrap(string)).array();
         byte[] terminator = "\0".getBytes(charset);
-        MemoryBlock memoryBlock = allocateDirect(bytes.length + terminator.length);
-        memoryBlock.setInt8Array(bytes.length, terminator);
-        memoryBlock.setInt8Array(0, bytes);
-        return memoryBlock;
+        MemoryHandle memoryHandle = allocateDirect(bytes.length + terminator.length);
+        memoryHandle.setInt8Array(bytes.length, terminator);
+        memoryHandle.setInt8Array(0, bytes);
+        return memoryHandle;
     }
 
-    public static MemoryBlock allocate(ForeignType type) {
+    public static MemoryHandle allocate(ForeignType type) {
         return allocate(type.size());
     }
 
-    public static MemoryBlock allocateDirect(ForeignType type) {
+    public static MemoryHandle allocateDirect(ForeignType type) {
         return allocateDirect(type.size());
     }
 
@@ -392,20 +392,20 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Gets the size of this memory object in bytes (optional operation).
      *
-     * @return the size of the memory area this {@code MemoryBlock} points to.  If
+     * @return the size of the memory area this {@code MemoryHandle} points to.  If
      * the size is unknown, return -1.
      */
     public abstract long size();
 
     /**
-     * Indicates whether the memory region size of this <code>MemoryBlock</code> instance is known.
+     * Indicates whether the memory region size of this <code>MemoryHandle</code> instance is known.
      *
      * @return true if, and only if, the memory region size of this object is known.
      */
     public abstract boolean isBounded();
 
     /**
-     * Indicates whether this <code>MemoryBlock</code> instance is backed by array.
+     * Indicates whether this <code>MemoryHandle</code> instance is backed by array.
      *
      * @return true if, and only if, this memory object is backed by an array
      */
@@ -438,7 +438,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads an {@code boolean} (8 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code boolean} value at the offset.
      */
     public abstract boolean getBoolean(long offset);
@@ -446,7 +446,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads an {@code byte} (8 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code byte} value at the offset.
      */
     public abstract byte getInt8(long offset);
@@ -454,7 +454,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code short} (16 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code short} value at the offset.
      */
     public abstract short getInt16(long offset);
@@ -462,7 +462,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code char} (16 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code char} value at the offset.
      */
     public abstract char getUTF16(long offset);
@@ -470,7 +470,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads an {@code int} (32 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code int} value contained in the memory at the offset.
      */
     public abstract int getInt32(long offset);
@@ -478,7 +478,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code long} (64 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code long} value at the offset.
      */
     public abstract long getInt64(long offset);
@@ -486,7 +486,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a native {@code char} (8-bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the native {@code char} value at the offset.
      */
     public byte getChar(long offset) {
@@ -496,7 +496,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a native {@code short} (16-bit or 64-bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the native {@code short} value at the offset.
      */
     public long getShort(long offset) {
@@ -506,7 +506,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a native {@code int} (32-bit or 64-bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the native {@code int} value at the offset.
      */
     public long getInt(long offset) {
@@ -516,7 +516,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a native {@code long} (32-bit or 64-bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the native {@code long} value at the offset.
      */
     public long getLong(long offset) {
@@ -528,7 +528,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>A native address can be either 32 or 64 bits in size, depending
      * on the cpu architecture.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the native address value contained in the memory at the offset
      */
     public long getAddress(long offset) {
@@ -538,7 +538,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code float} (32 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code float} value at the offset.
      */
     public abstract float getFloat(long offset);
@@ -546,7 +546,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code double} (64 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code double} value at the offset.
      */
     public abstract double getDouble(long offset);
@@ -554,7 +554,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code boolean} (8 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code boolean} value to be written.
      */
     public abstract void setBoolean(long offset, boolean value);
@@ -562,14 +562,14 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code byte} (8 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code byte} value to be written.
      */
     public abstract void setInt8(long offset, byte value);
 
     /**
      * Writes a {@code byte} (8 bit) value at the given offset.
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code byte} value to be written.
      */
     public void setInt8(long offset, int value) {
@@ -579,7 +579,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code short} (16 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code short} value to be written.
      */
     public abstract void setInt16(long offset, short value);
@@ -587,7 +587,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code short} (16 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code short} value to be written.
      */
     public void setInt16(long offset, int value) {
@@ -597,7 +597,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code char} (16 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code char} value to be written.
      */
     public abstract void setUTF16(long offset, char value);
@@ -605,7 +605,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes an {@code int} (32 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code int} value to be written.
      */
     public abstract void setInt32(long offset, int value);
@@ -613,7 +613,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code long} value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code long} value to be written.
      */
     public abstract void setInt64(long offset, long value);
@@ -621,7 +621,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a native {@code char} (8 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the native {@code char} value to be written.
      */
     public void setChar(long offset, byte value) {
@@ -631,7 +631,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a native {@code char} (8 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the native {@code char} value to be written.
      */
     public void setChar(long offset, int value) {
@@ -644,7 +644,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>A native {@code short} can be either 16 or 64 bits in size, depending
      * on the cpu architecture, and the C ABI in use.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the native {@code short} value to be written.
      */
     public void setShort(long offset, long value) {
@@ -657,7 +657,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>A native {@code int} can be either 32 or 64 bits in size, depending
      * on the cpu architecture, and the C ABI in use.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the native {@code int} value to be written.
      */
     public void setInt(long offset, long value) {
@@ -670,7 +670,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>A native {@code long} can be either 32 or 64 bits in size, depending
      * on the cpu architecture, and the C ABI in use.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the native {@code long} value to be written.
      */
     public void setLong(long offset, long value) {
@@ -682,7 +682,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>A native address can be either 32 or 64 bits in size, depending
      * on the cpu architecture.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value The native address value to be written.
      */
     public void setAddress(long offset, long value) {
@@ -692,7 +692,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code float} (32 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code float} value to be written.
      */
     public abstract void setFloat(long offset, float value);
@@ -700,7 +700,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code double} (64 bit) value at the given offset.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param value the {@code double} value to be written.
      */
     public abstract void setDouble(long offset, double value);
@@ -711,7 +711,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code boolean} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array the array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -733,7 +733,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code boolean} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array the array into which values are to be stored.
      */
     public void getBooleanArray(long offset, boolean[] array) {
@@ -746,7 +746,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code boolean} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -768,7 +768,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code boolean} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setBooleanArray(long offset, boolean[] array) {
@@ -781,7 +781,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code byte} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array the array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -803,7 +803,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code byte} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array the array into which values are to be stored.
      */
     public void getInt8Array(long offset, byte[] array) {
@@ -816,7 +816,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code byte} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -838,7 +838,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code byte} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setInt8Array(long offset, byte[] array) {
@@ -851,7 +851,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code short} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -873,7 +873,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code short} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getInt16Array(long offset, short[] array) {
@@ -886,7 +886,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code short} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -908,7 +908,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code short} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setInt16Array(long offset, short[] array) {
@@ -921,7 +921,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code char} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -943,7 +943,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code char} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getUTF16Array(long offset, char[] array) {
@@ -956,7 +956,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code char} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -978,7 +978,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code char} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setUTF16Array(long offset, char[] array) {
@@ -991,7 +991,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code int} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1013,7 +1013,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code int} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getInt32Array(long offset, int[] array) {
@@ -1026,7 +1026,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code int} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1048,7 +1048,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code int} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setInt32Array(long offset, int[] array) {
@@ -1061,7 +1061,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code long} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1083,7 +1083,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code long} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getInt64Array(long offset, long[] array) {
@@ -1096,7 +1096,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code long} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1118,7 +1118,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code long} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setInt64Array(long offset, long[] array) {
@@ -1131,7 +1131,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code float} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1153,7 +1153,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code float} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getFloatArray(long offset, float[] array) {
@@ -1166,7 +1166,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code float} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1188,7 +1188,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code float} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setFloatArray(long offset, float[] array) {
@@ -1201,7 +1201,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code double} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1223,7 +1223,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code double} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getDoubleArray(long offset, double[] array) {
@@ -1236,7 +1236,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code double} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1258,7 +1258,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code double} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setDoubleArray(long offset, double[] array) {
@@ -1271,7 +1271,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple native {@code char} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1286,7 +1286,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple native {@code char} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getCharArray(long offset, byte[] array) {
@@ -1299,7 +1299,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code char} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1314,7 +1314,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code char} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setCharArray(long offset, byte[] array) {
@@ -1327,7 +1327,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple native {@code short} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1349,7 +1349,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple native {@code short} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getShortArray(long offset, long[] array) {
@@ -1362,7 +1362,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code short} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1384,7 +1384,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code short} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setShortArray(long offset, long[] array) {
@@ -1397,7 +1397,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple native {@code int} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1419,7 +1419,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple native {@code int} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getIntArray(long offset, long[] array) {
@@ -1432,7 +1432,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code int} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1454,7 +1454,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code int} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setIntArray(long offset, long[] array) {
@@ -1467,7 +1467,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code long} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1489,7 +1489,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code long} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getLongArray(long offset, long[] array) {
@@ -1502,7 +1502,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code long} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1524,7 +1524,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple native {@code long} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setLongArray(long offset, long[] array) {
@@ -1537,7 +1537,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code address} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      * @param index the start index in the {@code array} array to begin storing the values.
      * @param length the number of values to be read.
@@ -1559,7 +1559,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method reads multiple {@code address} values from consecutive addresses,
      * beginning at the given offset, and stores them in an array.
      *
-     * @param offset The offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be read.
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
      */
     public void getAddressArray(long offset, long[] array) {
@@ -1572,7 +1572,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code address} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      * @param index the start index in the {@code array} array to begin reading values.
      * @param length the number of values to be written.
@@ -1594,7 +1594,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
      * <p>This method writes multiple {@code address} values to consecutive addresses,
      * beginning at the given offset, from an array.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the first value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
      * @param array the array to get values from.
      */
     public void setAddressArray(long offset, long[] array) {
@@ -1679,7 +1679,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads an {@code String} value at the given offset.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code String} value read from memory.
      */
     public String getZeroTerminatedString(long offset) {
@@ -1689,7 +1689,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code String} value at the given offset, using a specific {@code Charset}
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @param maxLength the maximum size of memory to search for a '\0' character.
      * @return the {@code String} value read from memory.
      */
@@ -1700,7 +1700,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads an {@code String} value at the given offset.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code String} value read from memory.
      */
     public String getZeroTerminatedWideString(long offset) {
@@ -1710,7 +1710,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code String} value at the given offset, using a specific {@code Charset}
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @param maxLength the maximum size of memory to search for a '\0' character.
      * @return the {@code String} value read from memory.
      */
@@ -1721,7 +1721,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads an {@code String} value at the given offset.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code String} value read from memory.
      */
     public String getZeroTerminatedString(long offset, Charset charset) {
@@ -1731,7 +1731,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Reads a {@code String} value at the given offset, using a specific {@code Charset}
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be read.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @param maxLength the maximum size of memory to search for a '\0' character.
      * @param charset the {@code Charset} to use to decode the string.
      * @return the {@code String} value read from memory.
@@ -1789,7 +1789,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code CharSequence} value at the given offset, using the default {@code Charset}
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param string the string to be written.
      */
     public void setZeroTerminatedString(long offset, CharSequence string) {
@@ -1803,7 +1803,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code CharSequence} value at the given offset, using the wide {@code Charset}
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param string the string to be written.
      */
     public void setZeroTerminatedWideString(long offset, CharSequence string) {
@@ -1817,7 +1817,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Writes a {@code CharSequence} value at the given offset, using a specific {@code Charset}
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock} represents at which the value will be written.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param string the string to be written.
      * @param charset the {@code Charset} to use to decode the string.
      */
@@ -1845,30 +1845,30 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     }
 
     /**
-     * Creates a new unbounded {@code MemoryBlock} representing a sub-region of the memory
-     * referred to by this {@code MemoryBlock}.
+     * Creates a new unbounded {@code MemoryHandle} representing a sub-region of the memory
+     * referred to by this {@code MemoryHandle}.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock}
-     * represents at which the new {@code MemoryBlock} will start.
-     * @return a {@code MemoryBlock} instance representing the new sub-region.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle}
+     * represents at which the new {@code MemoryHandle} will start.
+     * @return a {@code MemoryHandle} instance representing the new sub-region.
      */
-    public abstract MemoryBlock slice(long offset);
+    public abstract MemoryHandle slice(long offset);
 
     /**
-     * Creates a new bounded {@code MemoryBlock} representing a sub-region of the memory
-     * referred to by this {@code MemoryBlock}.
+     * Creates a new bounded {@code MemoryHandle} representing a sub-region of the memory
+     * referred to by this {@code MemoryHandle}.
      *
-     * @param offset the offset from the start of the memory this {@code MemoryBlock}
-     * represents at which the new {@code MemoryBlock} will start.
+     * @param offset the offset from the start of the memory this {@code MemoryHandle}
+     * represents at which the new {@code MemoryHandle} will start.
      * @param size the maximum size of the memory sub-region.
      *
-     * @return a {@code MemoryBlock} instance representing the new sub-region.
+     * @return a {@code MemoryHandle} instance representing the new sub-region.
      */
-    public abstract MemoryBlock slice(long offset, long size);
+    public abstract MemoryHandle slice(long offset, long size);
 
-    public abstract MemoryBlock duplicate();
+    public abstract MemoryHandle duplicate();
 
-    public abstract MemoryBlock attachment();
+    public abstract MemoryHandle attachment();
 
     public boolean hasAttachment() {
         return attachment() != null;
@@ -1877,38 +1877,38 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     /**
      * Bulk data transfer from one memory location to another.
      *
-     * @param srcOffset the offset from the start of the memory location this {@code MemoryBlock} represents to begin copying from.
-     * @param destMemoryBlock the destination memory location to transfer data to.
-     * @param destOffset the offset from the start of the memory location the destination {@code MemoryBlock} represents to begin copying to.
+     * @param srcOffset the offset from the start of the memory location this {@code MemoryHandle} represents to begin copying from.
+     * @param destMemoryHandle the destination memory location to transfer data to.
+     * @param destOffset the offset from the start of the memory location the destination {@code MemoryHandle} represents to begin copying to.
      * @param size the number of bytes to transfer.
      */
-    public abstract void transferTo(long srcOffset, MemoryBlock destMemoryBlock, long destOffset, long size);
+    public abstract void transferTo(long srcOffset, MemoryHandle destMemoryHandle, long destOffset, long size);
 
     /**
      * Bulk data transfer from one memory location to another.
      *
-     * @param destMemoryBlock the destination memory location to transfer data to.
+     * @param destMemoryHandle the destination memory location to transfer data to.
      * @param size the number of bytes to transfer.
      */
-    public abstract void transferTo(MemoryBlock destMemoryBlock, long size);
+    public abstract void transferTo(MemoryHandle destMemoryHandle, long size);
 
     /**
      * Bulk data transfer from one memory location to another.
      *
-     * @param destOffset the offset from the start of the memory location this {@code MemoryBlock} represents to begin copying to.
-     * @param srcMemoryBlock the destination memory location to transfer data from.
-     * @param srcOffset the offset from the start of the memory location the destination {@code MemoryBlock} represents to begin copying from.
+     * @param destOffset the offset from the start of the memory location this {@code MemoryHandle} represents to begin copying to.
+     * @param srcMemoryHandle the destination memory location to transfer data from.
+     * @param srcOffset the offset from the start of the memory location the destination {@code MemoryHandle} represents to begin copying from.
      * @param size the number of bytes to transfer.
      */
-    public abstract void transferFrom(long destOffset, MemoryBlock srcMemoryBlock, long srcOffset, long size);
+    public abstract void transferFrom(long destOffset, MemoryHandle srcMemoryHandle, long srcOffset, long size);
 
     /**
      * Bulk data transfer from one memory location to another.
      *
-     * @param srcMemoryBlock the destination memory location to transfer data from.
+     * @param srcMemoryHandle the destination memory location to transfer data from.
      * @param size the number of bytes to transfer.
      */
-    public abstract void transferFrom(MemoryBlock srcMemoryBlock, long size);
+    public abstract void transferFrom(MemoryHandle srcMemoryHandle, long size);
 
     /**
      * Checks that the memory region is within the bounds of this memory object
@@ -1945,47 +1945,47 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     public abstract boolean inBounds(long offset, long size);
 
     /**
-     * Sets the value of each byte in the memory area represented by this {@code MemoryBlock}.
+     * Sets the value of each byte in the memory area represented by this {@code MemoryHandle}.
      * to a specified value.
      *
-     * @param offset the offset from the start of the memory location this {@code MemoryBlock} represents to begin writing to.
+     * @param offset the offset from the start of the memory location this {@code MemoryHandle} represents to begin writing to.
      * @param size the number of bytes to set to the value.
      * @param value the value to set each byte to.
      */
     public abstract void fill(long offset, byte value, long size);
 
     /**
-     * Sets the value of each byte in the memory area represented by this {@code MemoryBlock}.
+     * Sets the value of each byte in the memory area represented by this {@code MemoryHandle}.
      * to a specified value.
      *
-     * @param offset the offset from the start of the memory location this {@code MemoryBlock} represents to begin writing to.
+     * @param offset the offset from the start of the memory location this {@code MemoryHandle} represents to begin writing to.
      * @param size the number of bytes to set to the value.
      * @param value the value to set each byte to.
      */
     public abstract void fill(long offset, int value, long size);
 
     /**
-     * Returns the location of a byte value within the memory area represented by this {@code MemoryBlock}.
+     * Returns the location of a byte value within the memory area represented by this {@code MemoryHandle}.
      *
-     * @param offset the offset from the start of the memory location this {@code MemoryBlock} represents to begin searching.
+     * @param offset the offset from the start of the memory location this {@code MemoryHandle} represents to begin searching.
      * @param value the {@code byte} value to locate.
      * @return the offset from the start of the search area (i.e. relative to the offset parameter), or -1 if not found.
      */
     public abstract long indexOf(long offset, byte value);
 
     /**
-     * Returns the location of a byte value within the memory area represented by this {@code MemoryBlock}.
+     * Returns the location of a byte value within the memory area represented by this {@code MemoryHandle}.
      *
-     * @param offset the offset from the start of the memory location this {@code MemoryBlock} represents to begin searching.
+     * @param offset the offset from the start of the memory location this {@code MemoryHandle} represents to begin searching.
      * @param value the {@code byte} value to locate.
      * @return the offset from the start of the search area (i.e. relative to the offset parameter), or -1 if not found.
      */
     public abstract long indexOf(long offset, int value);
 
     /**
-     * Returns the location of a byte value within the memory area represented by this {@code MemoryBlock}.
+     * Returns the location of a byte value within the memory area represented by this {@code MemoryHandle}.
      *
-     * @param offset the offset from the start of the memory location this {@code MemoryBlock} represents to begin searching.
+     * @param offset the offset from the start of the memory location this {@code MemoryHandle} represents to begin searching.
      * @param value the {@code byte} value to locate.
      * @param maxLength the maximum number of bytes to search for the desired value.
      * @return the offset from the start of the search area (i.e. relative to the offset parameter), or -1 if not found.
@@ -1993,9 +1993,9 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
     public abstract long indexOf(long offset, byte value, long maxLength);
 
     /**
-     * Returns the location of a byte value within the memory area represented by this {@code MemoryBlock}.
+     * Returns the location of a byte value within the memory area represented by this {@code MemoryHandle}.
      *
-     * @param offset the offset from the start of the memory location this {@code MemoryBlock} represents to begin searching.
+     * @param offset the offset from the start of the memory location this {@code MemoryHandle} represents to begin searching.
      * @param value the {@code byte} value to locate.
      * @param maxLength the maximum number of bytes to search for the desired value.
      * @return the offset from the start of the search area (i.e. relative to the offset parameter), or -1 if not found.
@@ -2014,16 +2014,16 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
 
     @Override
     public boolean equals(Object object) {
-        if (!(object instanceof MemoryBlock)) return false;
+        if (!(object instanceof MemoryHandle)) return false;
 
-        MemoryBlock that = (MemoryBlock) object;
+        MemoryHandle that = (MemoryHandle) object;
         if (isNil()) return that.isNil();
         else if (isDirect()) return that.isDirect() && address() == that.address();
         else return array() == that.array() && arrayOffset() == that.arrayOffset();
     }
 
     @Override
-    public int compareTo(MemoryBlock other) {
+    public int compareTo(MemoryHandle other) {
         if (isNil()) return other.isNil() ? 0 : -1;
         else if (other.isNil()) return isNil() ? 0 : 1;
         else if (isBounded() && other.isBounded()) {
@@ -2062,7 +2062,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
         else return compare(other, 0, other.size());
     }
 
-    private int compare(MemoryBlock other, long offset, long size) {
+    private int compare(MemoryHandle other, long offset, long size) {
         // FIXME: performance optimization
         if (size > 0) {
             for (long i = 0; i < size; i ++) {
@@ -2091,7 +2091,7 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
         }
     }
 
-    public int compareTo(MemoryBlock other, long offset, long size) {
+    public int compareTo(MemoryHandle other, long offset, long size) {
         if (size == 0) return 0;
         else if (isNil() && other.isNil()) return 0;
         else if (isDirect() && other.isDirect()) return Allocator.compare(address(), other.address(), size);
@@ -2103,39 +2103,39 @@ public abstract class MemoryBlock implements Comparable<MemoryBlock>, AutoClosea
 
     private abstract static class ValueAdapter {
 
-        public abstract long get(MemoryBlock memoryBlock, long offset);
-        public abstract void set(MemoryBlock memoryBlock, long offset, long value);
+        public abstract long get(MemoryHandle memoryHandle, long offset);
+        public abstract void set(MemoryHandle memoryHandle, long offset, long value);
 
         public static final ValueAdapter SIZE64 = new ValueAdapter() {
             @Override
-            public long get(MemoryBlock memoryBlock, long offset) {
-                return memoryBlock.getInt64(offset);
+            public long get(MemoryHandle memoryHandle, long offset) {
+                return memoryHandle.getInt64(offset);
             }
             @Override
-            public void set(MemoryBlock memoryBlock, long offset, long value) {
-                memoryBlock.setInt64(offset, value);
+            public void set(MemoryHandle memoryHandle, long offset, long value) {
+                memoryHandle.setInt64(offset, value);
             }
         };
 
         public static final ValueAdapter SIZE32 = new ValueAdapter() {
             @Override
-            public long get(MemoryBlock memoryBlock, long offset) {
-                return (long) memoryBlock.getInt32(offset) & 0xFFFFFFFFL;
+            public long get(MemoryHandle memoryHandle, long offset) {
+                return (long) memoryHandle.getInt32(offset) & 0xFFFFFFFFL;
             }
             @Override
-            public void set(MemoryBlock memoryBlock, long offset, long value) {
-                memoryBlock.setInt32(offset, (int) value);
+            public void set(MemoryHandle memoryHandle, long offset, long value) {
+                memoryHandle.setInt32(offset, (int) value);
             }
         };
 
         public static final ValueAdapter SIZE16 = new ValueAdapter() {
             @Override
-            public long get(MemoryBlock memoryBlock, long offset) {
-                return (long) memoryBlock.getInt16(offset) & 0xFFFFL;
+            public long get(MemoryHandle memoryHandle, long offset) {
+                return (long) memoryHandle.getInt16(offset) & 0xFFFFL;
             }
             @Override
-            public void set(MemoryBlock memoryBlock, long offset, long value) {
-                memoryBlock.setInt16(offset, (short) value);
+            public void set(MemoryHandle memoryHandle, long offset, long value) {
+                memoryHandle.setInt16(offset, (short) value);
             }
         };
 

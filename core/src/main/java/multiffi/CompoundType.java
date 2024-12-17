@@ -178,7 +178,7 @@ public final class CompoundType extends ForeignType {
 
     @Override
     public Class<?> carrier() {
-        return MemoryBlock.class;
+        return MemoryHandle.class;
     }
 
     @Override

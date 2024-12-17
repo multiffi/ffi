@@ -1,12 +1,41 @@
 package io.github.multiffi;
 
+import multiffi.UnsatisfiedLinkException;
 import multiffi.spi.AllocatorProvider;
 
+import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Array;
 
 @SuppressWarnings({"restricted", "deprecated", "removal"})
 public class FFMAllocatorProvider extends AllocatorProvider {
+
+    private static final class StdlibHolder {
+        private StdlibHolder() {
+            throw new UnsupportedOperationException();
+        }
+        public static final MethodHandle CALLOC;
+        public static final MethodHandle MEMCHR;
+        public static final MethodHandle MEMCMP;
+        static {
+            SymbolLookup stdlib = FFMUtil.ABIHolder.LINKER.defaultLookup();
+            MemorySegment address = stdlib.find("calloc")
+                    .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `calloc`"));
+            FunctionDescriptor signature = FunctionDescriptor.of(FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T);
+            CALLOC = FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature);
+            address = stdlib.find("memchr")
+                    .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `memchr`"));
+            signature = FunctionDescriptor.of(FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T, ValueLayout.JAVA_INT, FFMUtil.ABIHolder.SIZE_T);
+            MEMCHR = FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature);
+            address = stdlib.find("memcmp")
+                    .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `memcmp`"));
+            signature = FunctionDescriptor.of(ValueLayout.JAVA_INT, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T);
+            MEMCMP = FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature);
+        }
+    }
 
     private static long checkAddress(long address, long offset) {
         return FFMUtil.checkAddress(FFMUtil.unsignedAddExact(address, offset));
@@ -34,7 +63,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public long allocateInitialized(long count, long size) {
         try {
-            return (long) FFMUtil.StdlibHolder.CALLOC.invokeExact(count, size);
+            return (long) StdlibHolder.CALLOC.invokeExact(count, size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -49,13 +78,13 @@ public class FFMAllocatorProvider extends AllocatorProvider {
 
     @Override
     public void free(long address) {
-       FFMUtil.UnsafeHolder. UNSAFE.freeMemory(address);
+       FFMUtil.UnsafeHolder.UNSAFE.freeMemory(address);
     }
 
     @Override
     public long search(long address, byte value, long maxLength) {
         try {
-            return (long) FFMUtil.StdlibHolder.MEMCHR.invokeExact(FFMUtil.checkAddress(address), value, maxLength);
+            return (long) StdlibHolder.MEMCHR.invokeExact(FFMUtil.checkAddress(address), value, maxLength);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -80,7 +109,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public int compare(long aAddress, long bAddress, long size) {
         try {
-            return (int) FFMUtil.StdlibHolder.MEMCMP.invokeExact(FFMUtil.checkAddress(aAddress), FFMUtil.checkAddress(bAddress), size);
+            return (int) StdlibHolder.MEMCMP.invokeExact(FFMUtil.checkAddress(aAddress), FFMUtil.checkAddress(bAddress), size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
