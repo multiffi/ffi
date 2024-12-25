@@ -1,5 +1,6 @@
 package io.github.multiffi;
 
+import multiffi.Foreign;
 import multiffi.ForeignType;
 import multiffi.ScalarType;
 import sun.misc.Unsafe;
@@ -16,7 +17,7 @@ import java.security.ProtectionDomain;
 import java.util.Locale;
 import java.util.Objects;
 
-@SuppressWarnings({"restricted", "deprecated", "removal"})
+@SuppressWarnings({"deprecation", "removal"})
 final class FFMUtil {
 
     private FFMUtil() {
@@ -98,33 +99,29 @@ final class FFMUtil {
         return defineClass(classLoader, name, bytecode, 0, bytecode.length, null);
     }
 
-    public static long checkAddress(long address) {
-        if (UnsafeHolder.UNSAFE.addressSize() == 4) {
-            // Accept both zero and sign extended pointers. A valid
-            // pointer will, after the +1 below, either have produced
-            // the value 0x0 or 0x1. Masking off the low bit allows
-            // for testing against 0.
-            if ((((address >> 32) + 1) & ~1) != 0) throw new ArithmeticException("integer overflow");
-        }
-        return address;
-    }
-
-    public static long unsignedAddExact(long x, long y) {
-        long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
-        return sum;
-    }
-
     public static MemoryLayout toMemoryLayout(ForeignType type) {
         Objects.requireNonNull(type);
-        if (type == ScalarType.INT8) return ValueLayout.JAVA_BYTE;
-        else if (type == ScalarType.INT16) return ValueLayout.JAVA_SHORT;
-        else if (type == ScalarType.INT32) return ValueLayout.JAVA_INT;
-        else if (type == ScalarType.INT64) return ValueLayout.JAVA_LONG;
+        if (type == ScalarType.INT8 || type == ScalarType.CHAR) return ValueLayout.JAVA_BYTE;
+        else if (type == ScalarType.INT16 || (type == ScalarType.SHORT && Foreign.shortSize() == 2)) 
+            return ValueLayout.JAVA_SHORT;
+        else if (type == ScalarType.INT32
+                || (type == ScalarType.INT && Foreign.intSize() == 4)
+                || (type == ScalarType.LONG && Foreign.longSize() == 4)
+                || (type == ScalarType.SIZE && Foreign.addressSize() == 4)
+                || (type == ScalarType.WCHAR && Foreign.wcharSize() == 4))
+            return ValueLayout.JAVA_INT;
+        else if (type == ScalarType.INT64
+                || (type == ScalarType.SHORT && Foreign.shortSize() == 8)
+                || (type == ScalarType.INT && Foreign.intSize() == 8)
+                || (type == ScalarType.LONG && Foreign.longSize() == 8)
+                || (type == ScalarType.SIZE && Foreign.addressSize() == 8)) 
+            return ValueLayout.JAVA_LONG;
         else if (type == ScalarType.FLOAT) return ValueLayout.JAVA_FLOAT;
         else if (type == ScalarType.DOUBLE) return ValueLayout.JAVA_DOUBLE;
         else if (type == ScalarType.BOOLEAN) return ValueLayout.JAVA_BOOLEAN;
-        else if (type == ScalarType.UTF16) return ValueLayout.JAVA_CHAR;
+        else if (type == ScalarType.UTF16 || (type == ScalarType.WCHAR && Foreign.wcharSize() == 2))
+            return ValueLayout.JAVA_CHAR;
+        else if (type == ScalarType.ADDRESS) return ValueLayout.ADDRESS;
         else {
             long size = type.size();
             if (size < 0) throw new IndexOutOfBoundsException("Index out of range: " + Long.toUnsignedString(size));

@@ -494,13 +494,23 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     }
 
     /**
+     * Reads a native {@code wchar_t} (16-bit or 32-bit) value at the given offset.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
+     * @return the native {@code wchar_t} value at the offset.
+     */
+    public int getWChar(long offset) {
+        return Int32Adapter.WCHAR.get(this, offset);
+    }
+
+    /**
      * Reads a native {@code short} (16-bit or 64-bit) value at the given offset.
      *
      * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the native {@code short} value at the offset.
      */
     public long getShort(long offset) {
-        return ValueAdapter.SHORT.get(this, offset);
+        return Int64Adapter.SHORT.get(this, offset);
     }
 
     /**
@@ -510,7 +520,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @return the native {@code int} value at the offset.
      */
     public long getInt(long offset) {
-        return ValueAdapter.INT.get(this, offset);
+        return Int64Adapter.INT.get(this, offset);
     }
 
     /**
@@ -520,7 +530,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @return the native {@code long} value at the offset.
      */
     public long getLong(long offset) {
-        return ValueAdapter.LONG.get(this, offset);
+        return Int64Adapter.LONG.get(this, offset);
     }
 
     /**
@@ -532,7 +542,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @return the native address value contained in the memory at the offset
      */
     public long getAddress(long offset) {
-        return ValueAdapter.ADDRESS.get(this, offset);
+        return Int64Adapter.ADDRESS.get(this, offset);
     }
 
     /**
@@ -639,6 +649,19 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     }
 
     /**
+     * Writes a native {@code wchar_t} value at the given offset.
+     *
+     * <p>A native {@code wchar_t} can be either 16 or 32 bits in size, depending
+     * on the cpu architecture, and the C ABI in use.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
+     * @param value the native {@code wchar_t} value to be written.
+     */
+    public void setWChar(long offset, int value) {
+        Int32Adapter.WCHAR.set(this, offset, value);
+    }
+
+    /**
      * Writes a native {@code short} value at the given offset.
      *
      * <p>A native {@code short} can be either 16 or 64 bits in size, depending
@@ -648,7 +671,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param value the native {@code short} value to be written.
      */
     public void setShort(long offset, long value) {
-        ValueAdapter.SHORT.set(this, offset, value);
+        Int64Adapter.SHORT.set(this, offset, value);
     }
 
     /**
@@ -661,7 +684,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param value the native {@code int} value to be written.
      */
     public void setInt(long offset, long value) {
-        ValueAdapter.INT.set(this, offset, value);
+        Int64Adapter.INT.set(this, offset, value);
     }
 
     /**
@@ -674,7 +697,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param value the native {@code long} value to be written.
      */
     public void setLong(long offset, long value) {
-        ValueAdapter.LONG.set(this, offset, value);
+        Int64Adapter.LONG.set(this, offset, value);
     }
 
     /**
@@ -686,7 +709,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param value The native address value to be written.
      */
     public void setAddress(long offset, long value) {
-        ValueAdapter.ADDRESS.set(this, offset, value);
+        Int64Adapter.ADDRESS.set(this, offset, value);
     }
 
     /**
@@ -1322,6 +1345,76 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     }
 
     /**
+     * Bulk get method for multiple {@code wchar_t} values.
+     *
+     * <p>This method reads multiple {@code wchar_t} values from consecutive addresses,
+     * beginning at the given offset, and stores them in an array.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
+     * @param array The array into which values are to be stored.
+     * @param index the start index in the {@code array} array to begin storing the values.
+     * @param length the number of values to be read.
+     */
+    public void getWCharArray(long offset, int[] array, int index, int length) {
+        if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
+        else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
+        int size = Math.addExact(index, length);
+        if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
+        checkBounds(offset, (long) length * Foreign.wcharSize());
+        for (int i = 0; i < length; i ++) {
+            array[index + i] = Int32Adapter.WCHAR.get(this, offset + (long) i * Foreign.wcharSize());
+        }
+    }
+
+    /**
+     * Bulk get method for multiple {@code wchar_t} values.
+     *
+     * <p>This method reads multiple {@code wchar_t} values from consecutive addresses,
+     * beginning at the given offset, and stores them in an array.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
+     * @param array The array into which values are to be stored.
+     */
+    public void getWCharArray(long offset, int[] array) {
+        getWCharArray(offset, array, 0, array.length);
+    }
+
+    /**
+     * Bulk set method for multiple {@code wchar_t} values.
+     *
+     * <p>This method writes multiple {@code wchar_t} values to consecutive addresses,
+     * beginning at the given offset, from an array.
+     *
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
+     * @param array the array to get values from.
+     * @param index the start index in the {@code array} array to begin reading values.
+     * @param length the number of values to be written.
+     */
+    public void setWCharArray(long offset, int[] array, int index, int length) {
+        if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
+        else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
+        int size = Math.addExact(index, length);
+        if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
+        checkBounds(offset, (long) length * Foreign.wcharSize());
+        for (int i = 0; i < length; i ++) {
+            Int32Adapter.WCHAR.set(this, offset + (long) i * Foreign.wcharSize(), array[index + i]);
+        }
+    }
+
+    /**
+     * Bulk set method for multiple {@code wchar_t} values.
+     *
+     * <p>This method writes multiple {@code wchar_t} values to consecutive addresses,
+     * beginning at the given offset, from an array.
+     *
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
+     * @param array the array to get values from.
+     */
+    public void setWCharArray(long offset, int[] array) {
+        setWCharArray(offset, array, 0, array.length);
+    }
+
+    /**
      * Bulk get method for multiple native {@code short} values.
      *
      * <p>This method reads multiple native {@code short} values from consecutive addresses,
@@ -1339,7 +1432,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.shortSize());
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.SHORT.get(this, offset + (long) i * Foreign.shortSize());
+            array[index + i] = Int64Adapter.SHORT.get(this, offset + (long) i * Foreign.shortSize());
         }
     }
 
@@ -1374,7 +1467,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.shortSize());
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.SHORT.set(this, offset + (long) i * Foreign.shortSize(), array[index + i]);
+            Int64Adapter.SHORT.set(this, offset + (long) i * Foreign.shortSize(), array[index + i]);
         }
     }
 
@@ -1409,7 +1502,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.intSize());
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.INT.get(this, offset + (long) i * Foreign.intSize());
+            array[index + i] = Int64Adapter.INT.get(this, offset + (long) i * Foreign.intSize());
         }
     }
 
@@ -1444,7 +1537,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.intSize());
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.INT.set(this, offset + (long) i * Foreign.intSize(), array[index + i]);
+            Int64Adapter.INT.set(this, offset + (long) i * Foreign.intSize(), array[index + i]);
         }
     }
 
@@ -1479,7 +1572,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.longSize());
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.LONG.get(this, offset + (long) i * Foreign.longSize());
+            array[index + i] = Int64Adapter.LONG.get(this, offset + (long) i * Foreign.longSize());
         }
     }
 
@@ -1514,7 +1607,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.longSize());
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.LONG.set(this, offset + (long) i * Foreign.longSize(), array[index + i]);
+            Int64Adapter.LONG.set(this, offset + (long) i * Foreign.longSize(), array[index + i]);
         }
     }
 
@@ -1549,7 +1642,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.addressSize());
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.ADDRESS.get(this, offset + (long) i * Foreign.addressSize());
+            array[index + i] = Int64Adapter.ADDRESS.get(this, offset + (long) i * Foreign.addressSize());
         }
     }
 
@@ -1584,7 +1677,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
         checkBounds(offset, (long) length * Foreign.addressSize());
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.ADDRESS.set(this, offset + (long) i * Foreign.addressSize(), array[index + i]);
+            Int64Adapter.ADDRESS.set(this, offset + (long) i * Foreign.addressSize(), array[index + i]);
         }
     }
 
@@ -1609,11 +1702,11 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         return getZeroTerminatedStringLength(offset, maxLength, null);
     }
 
-    public long getZeroTerminatedWideStringLength(long offset) {
-        return getZeroTerminatedWideStringLength(offset, Limits.ADDRESS_MAX);
+    public long getZeroTerminatedWStringLength(long offset) {
+        return getZeroTerminatedWStringLength(offset, Limits.ADDRESS_MAX);
     }
 
-    public long getZeroTerminatedWideStringLength(long offset, long maxLength) {
+    public long getZeroTerminatedWStringLength(long offset, long maxLength) {
         return getZeroTerminatedStringLength(offset, maxLength, Foreign.wideCharset());
     }
 
@@ -1642,11 +1735,11 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         return getZeroTerminatedCharArray(offset, maxLength, null);
     }
 
-    public byte[] getZeroTerminatedWideCharArray(long offset) {
-        return getZeroTerminatedWideCharArray(offset, Integer.MAX_VALUE - 8);
+    public byte[] getZeroTerminatedWCharArray(long offset) {
+        return getZeroTerminatedWCharArray(offset, Integer.MAX_VALUE - 8);
     }
 
-    public byte[] getZeroTerminatedWideCharArray(long offset, int maxLength) {
+    public byte[] getZeroTerminatedWCharArray(long offset, int maxLength) {
         return getZeroTerminatedCharArray(offset, maxLength, Foreign.wideCharset());
     }
 
@@ -1703,8 +1796,8 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
      * @return the {@code String} value read from memory.
      */
-    public String getZeroTerminatedWideString(long offset) {
-        return getZeroTerminatedWideString(offset, Integer.MAX_VALUE - 8);
+    public String getZeroTerminatedWString(long offset) {
+        return getZeroTerminatedWString(offset, Integer.MAX_VALUE - 8);
     }
 
     /**
@@ -1714,7 +1807,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param maxLength the maximum size of memory to search for a '\0' character.
      * @return the {@code String} value read from memory.
      */
-    public String getZeroTerminatedWideString(long offset, int maxLength) {
+    public String getZeroTerminatedWString(long offset, int maxLength) {
         return getZeroTerminatedString(offset, maxLength, Foreign.wideCharset());
     }
 
@@ -1756,11 +1849,11 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         setZeroTerminatedCharArray(offset, array, index, length, null);
     }
 
-    public void setZeroTerminatedWideCharArray(long offset, byte[] array) {
-        setZeroTerminatedWideCharArray(offset, array, 0, array.length);
+    public void setZeroTerminatedWCharArray(long offset, byte[] array) {
+        setZeroTerminatedWCharArray(offset, array, 0, array.length);
     }
 
-    public void setZeroTerminatedWideCharArray(long offset, byte[] array, int index, int length) {
+    public void setZeroTerminatedWCharArray(long offset, byte[] array, int index, int length) {
         setZeroTerminatedCharArray(offset, array, index, length, Foreign.wideCharset());
     }
 
@@ -1806,11 +1899,11 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
      * @param string the string to be written.
      */
-    public void setZeroTerminatedWideString(long offset, CharSequence string) {
-        setZeroTerminatedWideString(offset, string, 0, string.length());
+    public void setZeroTerminatedWString(long offset, CharSequence string) {
+        setZeroTerminatedWString(offset, string, 0, string.length());
     }
 
-    public void setZeroTerminatedWideString(long offset, CharSequence string, int index, int length) {
+    public void setZeroTerminatedWString(long offset, CharSequence string, int index, int length) {
         setZeroTerminatedString(offset, string, index, length, Foreign.wideCharset());
     }
 
@@ -2101,12 +2194,12 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     @Override
     public abstract void close();
 
-    private abstract static class ValueAdapter {
+    private abstract static class Int64Adapter {
 
         public abstract long get(MemoryHandle memoryHandle, long offset);
         public abstract void set(MemoryHandle memoryHandle, long offset, long value);
 
-        public static final ValueAdapter SIZE64 = new ValueAdapter() {
+        public static final Int64Adapter SIZE64 = new Int64Adapter() {
             @Override
             public long get(MemoryHandle memoryHandle, long offset) {
                 return memoryHandle.getInt64(offset);
@@ -2117,32 +2210,66 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             }
         };
 
-        public static final ValueAdapter SIZE32 = new ValueAdapter() {
+        public static final Int64Adapter SIZE32 = new Int64Adapter() {
             @Override
             public long get(MemoryHandle memoryHandle, long offset) {
                 return (long) memoryHandle.getInt32(offset) & 0xFFFFFFFFL;
             }
             @Override
             public void set(MemoryHandle memoryHandle, long offset, long value) {
+                if ((((value >> 32) + 1) & ~1) != 0) throw new ArithmeticException("integer overflow");
                 memoryHandle.setInt32(offset, (int) value);
             }
         };
 
-        public static final ValueAdapter SIZE16 = new ValueAdapter() {
+        public static final Int64Adapter SIZE16 = new Int64Adapter() {
             @Override
             public long get(MemoryHandle memoryHandle, long offset) {
                 return (long) memoryHandle.getInt16(offset) & 0xFFFFL;
             }
             @Override
             public void set(MemoryHandle memoryHandle, long offset, long value) {
+                if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 memoryHandle.setInt16(offset, (short) value);
             }
         };
 
-        public static final ValueAdapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
-        public static final ValueAdapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
-        public static final ValueAdapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
-        public static final ValueAdapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+        public static final Int64Adapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
+        public static final Int64Adapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
+        public static final Int64Adapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
+        public static final Int64Adapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+
+    }
+
+    private abstract static class Int32Adapter {
+
+        public abstract int get(MemoryHandle memoryHandle, long offset);
+        public abstract void set(MemoryHandle memoryHandle, long offset, int value);
+
+        public static final Int32Adapter SIZE32 = new Int32Adapter() {
+            @Override
+            public int get(MemoryHandle memoryHandle, long offset) {
+                return memoryHandle.getInt32(offset);
+            }
+            @Override
+            public void set(MemoryHandle memoryHandle, long offset, int value) {
+                memoryHandle.setInt32(offset, value);
+            }
+        };
+
+        public static final Int32Adapter SIZE16 = new Int32Adapter() {
+            @Override
+            public int get(MemoryHandle memoryHandle, long offset) {
+                return (int) memoryHandle.getInt16(offset) & 0xFFFF;
+            }
+            @Override
+            public void set(MemoryHandle memoryHandle, long offset, int value) {
+                if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
+                memoryHandle.setInt16(offset, (short) value);
+            }
+        };
+
+        public static final Int32Adapter WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
 
     }
 

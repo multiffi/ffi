@@ -18,11 +18,11 @@ public final class CompoundType extends ForeignType {
         int length = offsets.length;
         if (length == 0) return new CompoundType(Collections.emptyList(), 0, padding);
         else {
-            List<Member> list = new ArrayList<>(length);
+            List<CompoundElement> list = new ArrayList<>(length);
             for (int i = 0; i < length; i ++) {
-                list.add(new Member(types[i], offsets[i], repetitions[i]));
+                list.add(new CompoundElement(types[i], offsets[i], repetitions[i]));
             }
-            Member last = list.get(length - 1);
+            CompoundElement last = list.get(length - 1);
             return new CompoundType(Collections.unmodifiableList(list), -1,
                     Util.unsignedAddExact(last.getOffset(), Util.unsignedAddExact(last.size(), padding)));
         }
@@ -40,11 +40,11 @@ public final class CompoundType extends ForeignType {
                                   int length, long padding) {
         if (length == 0) return new CompoundType(Collections.emptyList(), -1, padding);
         else {
-            List<Member> list = new ArrayList<>(length);
+            List<CompoundElement> list = new ArrayList<>(length);
             for (int i = 0; i < length; i ++) {
-                list.add(new Member(types[typesOffset + i], offsets[offsetsOffset + i], repetitions[repetitionsOffset + i]));
+                list.add(new CompoundElement(types[typesOffset + i], offsets[offsetsOffset + i], repetitions[repetitionsOffset + i]));
             }
-            Member last = list.get(length - 1);
+            CompoundElement last = list.get(length - 1);
             return new CompoundType(Collections.unmodifiableList(list), -1,
                     Util.unsignedAddExact(last.getOffset(), Util.unsignedAddExact(last.size(), padding)));
         }
@@ -62,10 +62,10 @@ public final class CompoundType extends ForeignType {
                                         long[] repetitions, int repetitionsOffset, int length) {
         if (length == 0) return EMPTY;
         else {
-            List<Member> list = new ArrayList<>(length);
+            List<CompoundElement> list = new ArrayList<>(length);
             long offset = 0;
             ForeignType type = types[typesOffset];
-            Member first = new Member(type, offset, repetitions[repetitionsOffset]);
+            CompoundElement first = new CompoundElement(type, offset, repetitions[repetitionsOffset]);
             long alignment = first.getType().size();
             list.add(first);
             offset = Util.unsignedAddExact(offset, first.size());
@@ -73,10 +73,10 @@ public final class CompoundType extends ForeignType {
                 long size = Util.unsignedMin(Foreign.addressSize(), align(types[i + typesOffset]));
                 long left = Long.remainderUnsigned(offset, size);
                 if (Long.compareUnsigned(left, 0) > 0) offset = Util.unsignedAddExact(offset, size - left);
-                Member member = new Member(types[i + typesOffset], offset, repetitions[i + repetitionsOffset]);
+                CompoundElement compoundElement = new CompoundElement(types[i + typesOffset], offset, repetitions[i + repetitionsOffset]);
                 alignment = Math.max(alignment, size);
-                list.add(member);
-                offset = Util.unsignedAddExact(offset, member.size());
+                list.add(compoundElement);
+                offset = Util.unsignedAddExact(offset, compoundElement.size());
             }
             if (length != 1) {
                 long left = Long.remainderUnsigned(list.get(list.size() - 1).getType().size(), alignment);
@@ -90,8 +90,8 @@ public final class CompoundType extends ForeignType {
     private static long align(ForeignType type) {
         if (type instanceof CompoundType) {
             long size = 0;
-            for (Member member : ((CompoundType) type).members) {
-                size = Util.unsignedMax(size, align(member.getType()));
+            for (CompoundElement compoundElement : ((CompoundType) type).compoundElements) {
+                size = Util.unsignedMax(size, align(compoundElement.getType()));
             }
             return size;
         }
@@ -121,12 +121,12 @@ public final class CompoundType extends ForeignType {
         else {
             long alignment = 0;
             long size = 0;
-            List<Member> list = new ArrayList<>();
+            List<CompoundElement> list = new ArrayList<>();
             for (int i = 0; i < length; i ++) {
-                Member member = new Member(types[i + typesOffset], 0, repetitions[i + repetitionsOffset]);
-                list.add(member);
-                alignment = Util.unsignedMax(alignment, member.getType().size());
-                size = Util.unsignedMax(size, member.size());
+                CompoundElement compoundElement = new CompoundElement(types[i + typesOffset], 0, repetitions[i + repetitionsOffset]);
+                list.add(compoundElement);
+                alignment = Util.unsignedMax(alignment, compoundElement.getType().size());
+                size = Util.unsignedMax(size, compoundElement.size());
             }
             if (Long.remainderUnsigned(size, alignment) != 0)
                 size = Util.unsignedMultiplyExact(size / (alignment + 1), alignment);
@@ -153,21 +153,21 @@ public final class CompoundType extends ForeignType {
 
     public static CompoundType ofArray(ForeignType type, long repetition) {
         if (repetition == 0) return EMPTY;
-        else return new CompoundType(Collections.singletonList(new Member(type, 0, repetition)), 2,
+        else return new CompoundType(Collections.singletonList(new CompoundElement(type, 0, repetition)), 2,
                 Util.unsignedMultiplyExact(type.size(), repetition));
     }
     
-    private final List<Member> members;
+    private final List<CompoundElement> compoundElements;
     private final long size;
     private final int kind; // -1 = auto, 0 = struct, 1 = union, 2 = array
 
-    private CompoundType(List<Member> members, int kind, long size) {
-        this.members = members;
+    private CompoundType(List<CompoundElement> compoundElements, int kind, long size) {
+        this.compoundElements = compoundElements;
         this.size = size;
         if (kind == -1) {
             kind = 0;
-            for (Member member : members) {
-                if (member.getOffset() != 0) {
+            for (CompoundElement compoundElement : compoundElements) {
+                if (compoundElement.getOffset() != 0) {
                     kind = 1;
                     break;
                 }
@@ -207,18 +207,18 @@ public final class CompoundType extends ForeignType {
     }
 
     @Override
-    public Member[] getMembers() {
-        return members.toArray(Member.EMPTY_MEMBER_ARRAY);
+    public CompoundElement[] getElements() {
+        return compoundElements.toArray(Util.EMPTY_COMPOUND_ELEMENT_ARRAY);
     }
 
     @Override
-    public Member getMember(int index) throws IndexOutOfBoundsException {
-        return members.get(index);
+    public CompoundElement getElement(int index) throws IndexOutOfBoundsException {
+        return compoundElements.get(index);
     }
 
     @Override
     public ForeignType getComponentType() {
-        return isArray() ? members.get(0).getType() : null;
+        return isArray() ? compoundElements.get(0).getType() : null;
     }
 
 }

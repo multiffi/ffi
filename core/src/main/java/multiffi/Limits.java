@@ -28,13 +28,15 @@ public final class Limits {
     public static final byte  CHAR_MAX    = Byte.MAX_VALUE;
     public static final byte  UCHAR_MIN   = 0;
     public static final byte  UCHAR_MAX   = -1;
-    public static final long  SHORT_MIN   = Foreign.shortSize() == 8 ? Long.MIN_VALUE : Short.MAX_VALUE;
+    public static final int   WCHAR_MIN   = Foreign.wcharSize() == 4 ? Integer.MIN_VALUE : Short.MIN_VALUE;
+    public static final int   WCHAR_MAX   = Foreign.wcharSize() == 4 ? Integer.MAX_VALUE : Short.MAX_VALUE;
+    public static final long  SHORT_MIN   = Foreign.shortSize() == 8 ? Long.MIN_VALUE : Short.MIN_VALUE;
     public static final long  SHORT_MAX   = Foreign.shortSize() == 8 ? Long.MAX_VALUE : Short.MAX_VALUE;
     public static final long  USHORT_MIN  = 0;
-    public static final long  INT_MIN     = Foreign.intSize() == 8 ? Long.MIN_VALUE : Integer.MAX_VALUE;
+    public static final long  INT_MIN     = Foreign.intSize() == 8 ? Long.MIN_VALUE : Integer.MIN_VALUE;
     public static final long  INT_MAX     = Foreign.intSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE;
     public static final long  UINT_MIN    = 0;
-    public static final long  LONG_MIN    = Foreign.longSize() == 8 ? Long.MIN_VALUE : Integer.MAX_VALUE;
+    public static final long  LONG_MIN    = Foreign.longSize() == 8 ? Long.MIN_VALUE : Integer.MIN_VALUE;
     public static final long  LONG_MAX    = Foreign.longSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE;
     public static final long  ULONG_MIN   = 0;
     public static final long  ADDRESS_MIN = 0;

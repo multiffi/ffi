@@ -169,17 +169,20 @@ public abstract class AllocatorProvider {
     public byte getChar(long address) {
         return getInt8(address);
     }
+    public long getWChar(long address) {
+        return Int32Adapter.WCHAR.get(this, address);
+    }
     public long getShort(long address) {
-        return ValueAdapter.SHORT.get(this, address);
+        return Int64Adapter.SHORT.get(this, address);
     }
     public long getInt(long address) {
-        return ValueAdapter.INT.get(this, address);
+        return Int64Adapter.INT.get(this, address);
     }
     public long getLong(long address) {
-        return ValueAdapter.LONG.get(this, address);
+        return Int64Adapter.LONG.get(this, address);
     }
     public long getAddress(long address) {
-        return ValueAdapter.ADDRESS.get(this, address);
+        return Int64Adapter.ADDRESS.get(this, address);
     }
     public abstract float getFloat(long address);
     public abstract double getDouble(long address);
@@ -201,17 +204,20 @@ public abstract class AllocatorProvider {
     public void setChar(long address, int value) {
         setInt8(address, value);
     }
+    public void setWChar(long address, int value) {
+        Int32Adapter.WCHAR.set(this, address, value);
+    }
     public void setShort(long address, long value) {
-        ValueAdapter.SHORT.set(this, address, value);
+        Int64Adapter.SHORT.set(this, address, value);
     }
     public void setInt(long address, long value) {
-        ValueAdapter.INT.set(this, address, value);
+        Int64Adapter.INT.set(this, address, value);
     }
     public void setLong(long address, long value) {
-        ValueAdapter.LONG.set(this, address, value);
+        Int64Adapter.LONG.set(this, address, value);
     }
     public void setAddress(long address, long value) {
-        ValueAdapter.ADDRESS.set(this, address, value);
+        Int64Adapter.ADDRESS.set(this, address, value);
     }
     public abstract void setFloat(long address, float value);
     public abstract void setDouble(long address, double value);
@@ -420,13 +426,37 @@ public abstract class AllocatorProvider {
     public void setCharArray(long address, byte[] array) {
         setInt8Array(address, array);
     }
+    public void getWCharArray(long address, int[] array, int index, int length) {
+        if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
+        else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
+        int size = index + length;
+        if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
+        for (int i = 0; i < length; i ++) {
+            array[index + i] = Int32Adapter.WCHAR.get(this, address + (long) i * Foreign.wcharSize());
+        }
+    }
+    public void getWCharArray(long address, int[] array) {
+        getWCharArray(address, array, 0, array.length);
+    }
+    public void setWCharArray(long address, int[] array, int index, int length) {
+        if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
+        else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
+        int size = index + length;
+        if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
+        for (int i = 0; i < length; i ++) {
+            Int32Adapter.WCHAR.set(this, address + (long) i * Foreign.wcharSize(), array[index + i]);
+        }
+    }
+    public void setWCharArray(long address, int[] array) {
+        setWCharArray(address, array, 0, array.length);
+    }
     public void getShortArray(long address, long[] array, int index, int length) {
         if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
         else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.SHORT.get(this, address + (long) i * Foreign.shortSize());
+            array[index + i] = Int64Adapter.SHORT.get(this, address + (long) i * Foreign.shortSize());
         }
     }
     public void getShortArray(long address, long[] array) {
@@ -438,7 +468,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.SHORT.set(this, address + (long) i * Foreign.shortSize(), array[index + i]);
+            Int64Adapter.SHORT.set(this, address + (long) i * Foreign.shortSize(), array[index + i]);
         }
     }
     public void setShortArray(long address, long[] array) {
@@ -450,7 +480,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.INT.get(this, address + (long) i * Foreign.intSize());
+            array[index + i] = Int64Adapter.INT.get(this, address + (long) i * Foreign.intSize());
         }
     }
     public void getIntArray(long address, long[] array) {
@@ -462,7 +492,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.INT.set(this, address + (long) i * Foreign.intSize(), array[index + i]);
+            Int64Adapter.INT.set(this, address + (long) i * Foreign.intSize(), array[index + i]);
         }
     }
     public void setIntArray(long address, long[] array) {
@@ -474,7 +504,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.LONG.set(this, address + (long) i * Foreign.longSize(), array[index + i]);
+            Int64Adapter.LONG.set(this, address + (long) i * Foreign.longSize(), array[index + i]);
         }
     }
     public void getLongArray(long address, long[] array) {
@@ -486,7 +516,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.LONG.get(this, address + (long) i * Foreign.longSize());
+            array[index + i] = Int64Adapter.LONG.get(this, address + (long) i * Foreign.longSize());
         }
     }
     public void setLongArray(long address, long[] array) {
@@ -498,7 +528,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.ADDRESS.set(this, address + (long) i * Foreign.addressSize(), array[index + i]);
+            Int64Adapter.ADDRESS.set(this, address + (long) i * Foreign.addressSize(), array[index + i]);
         }
     }
     public void getAddressArray(long address, long[] array) {
@@ -510,7 +540,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.ADDRESS.set(this, address + (long) i * Foreign.addressSize(), array[index + i]);
+            Int64Adapter.ADDRESS.set(this, address + (long) i * Foreign.addressSize(), array[index + i]);
         }
     }
     public void setAddressArray(long address, long[] array) {
@@ -522,10 +552,10 @@ public abstract class AllocatorProvider {
     public long getZeroTerminatedStringLength(long address, long maxLength) {
         return getZeroTerminatedStringLength(address, maxLength, null);
     }
-    public long getZeroTerminatedWideStringLength(long address) {
-        return getZeroTerminatedWideStringLength(address, Limits.ADDRESS_MAX);
+    public long getZeroTerminatedWStringLength(long address) {
+        return getZeroTerminatedWStringLength(address, Limits.ADDRESS_MAX);
     }
-    public long getZeroTerminatedWideStringLength(long address, long maxLength) {
+    public long getZeroTerminatedWStringLength(long address, long maxLength) {
         return getZeroTerminatedStringLength(address, maxLength, Foreign.wideCharset());
     }
     public long getZeroTerminatedStringLength(long address, Charset charset) {
@@ -547,10 +577,10 @@ public abstract class AllocatorProvider {
     public byte[] getZeroTerminatedCharArray(long address, int maxLength) {
         return getZeroTerminatedCharArray(address, maxLength, null);
     }
-    public byte[] getZeroTerminatedWideCharArray(long address) {
-        return getZeroTerminatedWideCharArray(address, Integer.MAX_VALUE - 8);
+    public byte[] getZeroTerminatedWCharArray(long address) {
+        return getZeroTerminatedWCharArray(address, Integer.MAX_VALUE - 8);
     }
-    public byte[] getZeroTerminatedWideCharArray(long address, int maxLength) {
+    public byte[] getZeroTerminatedWCharArray(long address, int maxLength) {
         return getZeroTerminatedCharArray(address, maxLength, Foreign.wideCharset());
     }
     public byte[] getZeroTerminatedCharArray(long address, Charset charset) {
@@ -581,11 +611,11 @@ public abstract class AllocatorProvider {
     public String getZeroTerminatedString(long address, int maxLength) {
         return new String(getZeroTerminatedCharArray(address, maxLength), Foreign.ansiCharset());
     }
-    public String getZeroTerminatedWideString(long address) {
-        return getZeroTerminatedWideString(address, Integer.MAX_VALUE - 8);
+    public String getZeroTerminatedWString(long address) {
+        return getZeroTerminatedWString(address, Integer.MAX_VALUE - 8);
     }
-    public String getZeroTerminatedWideString(long address, int maxLength) {
-        return new String(getZeroTerminatedWideCharArray(address, maxLength), Foreign.wideCharset());
+    public String getZeroTerminatedWString(long address, int maxLength) {
+        return new String(getZeroTerminatedWCharArray(address, maxLength), Foreign.wideCharset());
     }
     public String getZeroTerminatedString(long address, Charset charset) {
         return getZeroTerminatedString(address, Integer.MAX_VALUE - 8, charset);
@@ -606,10 +636,10 @@ public abstract class AllocatorProvider {
     public void setZeroTerminatedCharArray(long address, byte[] array, int index, int length) {
         setZeroTerminatedCharArray(address, array, index, length, null);
     }
-    public void setZeroTerminatedWideCharArray(long address, byte[] array) {
-        setZeroTerminatedWideCharArray(address, array, 0, array.length);
+    public void setZeroTerminatedWCharArray(long address, byte[] array) {
+        setZeroTerminatedWCharArray(address, array, 0, array.length);
     }
-    public void setZeroTerminatedWideCharArray(long address, byte[] array, int index, int length) {
+    public void setZeroTerminatedWCharArray(long address, byte[] array, int index, int length) {
         setZeroTerminatedCharArray(address, array, index, length, Foreign.wideCharset());
     }
     public void setZeroTerminatedCharArray(long address, byte[] array, Charset charset) {
@@ -636,11 +666,11 @@ public abstract class AllocatorProvider {
     public void setZeroTerminatedString(long address, String string, int index, int length) {
         setZeroTerminatedCharArray(address, string.getBytes(Foreign.ansiCharset()), index, length);
     }
-    public void setZeroTerminatedWideString(long address, String string) {
-        setZeroTerminatedWideString(address, string, 0, string.length());
+    public void setZeroTerminatedWString(long address, String string) {
+        setZeroTerminatedWString(address, string, 0, string.length());
     }
-    public void setZeroTerminatedWideString(long address, String string, int index, int length) {
-        setZeroTerminatedWideCharArray(address, string.getBytes(Foreign.wideCharset()), index, length);
+    public void setZeroTerminatedWString(long address, String string, int index, int length) {
+        setZeroTerminatedWCharArray(address, string.getBytes(Foreign.wideCharset()), index, length);
     }
     public void setZeroTerminatedString(long address, String string, Charset charset) {
         setZeroTerminatedString(address, string, 0, string.length(), charset);
@@ -668,16 +698,16 @@ public abstract class AllocatorProvider {
         return getInt8(array, arrayOffset);
     }
     public long getShort(Object array, long arrayOffset) {
-        return ValueAdapter.SHORT.get(this, array, arrayOffset);
+        return Int64Adapter.SHORT.get(this, array, arrayOffset);
     }
     public long getInt(Object array, long arrayOffset) {
-        return ValueAdapter.INT.get(this, array, arrayOffset);
+        return Int64Adapter.INT.get(this, array, arrayOffset);
     }
     public long getLong(Object array, long arrayOffset) {
-        return ValueAdapter.LONG.get(this, array, arrayOffset);
+        return Int64Adapter.LONG.get(this, array, arrayOffset);
     }
     public long getAddress(Object array, long arrayOffset) {
-        return ValueAdapter.ADDRESS.get(this, array, arrayOffset);
+        return Int64Adapter.ADDRESS.get(this, array, arrayOffset);
     }
     public abstract float getFloat(Object array, long arrayOffset);
     public abstract double getDouble(Object array, long arrayOffset);
@@ -700,16 +730,16 @@ public abstract class AllocatorProvider {
         setInt8(array, arrayOffset, value);
     }
     public void setShort(Object array, long arrayOffset, long value) {
-        ValueAdapter.SHORT.set(this, array, arrayOffset, value);
+        Int64Adapter.SHORT.set(this, array, arrayOffset, value);
     }
     public void setInt(Object array, long arrayOffset, long value) {
-        ValueAdapter.INT.set(this, array, arrayOffset, value);
+        Int64Adapter.INT.set(this, array, arrayOffset, value);
     }
     public void setLong(Object array, long arrayOffset, long value) {
-        ValueAdapter.LONG.set(this, array, arrayOffset, value);
+        Int64Adapter.LONG.set(this, array, arrayOffset, value);
     }
     public void setAddress(Object array, long arrayOffset, long value) {
-        ValueAdapter.ADDRESS.set(this, array, arrayOffset, value);
+        Int64Adapter.ADDRESS.set(this, array, arrayOffset, value);
     }
     public abstract void setFloat(Object array, long arrayOffset, float value);
     public abstract void setDouble(Object array, long arrayOffset, double value);
@@ -924,7 +954,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.SHORT.get(this, memoryArray, memoryArrayOffset + (long) i * Foreign.shortSize());
+            array[index + i] = Int64Adapter.SHORT.get(this, memoryArray, memoryArrayOffset + (long) i * Foreign.shortSize());
         }
     }
     public void getShortArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -936,7 +966,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.SHORT.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.shortSize(), array[index + i]);
+            Int64Adapter.SHORT.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.shortSize(), array[index + i]);
         }
     }
     public void setShortArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -948,7 +978,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.INT.get(this, memoryArray, memoryArrayOffset + (long) i * Foreign.intSize());
+            array[index + i] = Int64Adapter.INT.get(this, memoryArray, memoryArrayOffset + (long) i * Foreign.intSize());
         }
     }
     public void getIntArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -960,7 +990,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.INT.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.intSize(), array[index + i]);
+            Int64Adapter.INT.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.intSize(), array[index + i]);
         }
     }
     public void setIntArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -972,7 +1002,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.LONG.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.longSize(), array[index + i]);
+            Int64Adapter.LONG.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.longSize(), array[index + i]);
         }
     }
     public void getLongArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -984,7 +1014,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            array[index + i] = ValueAdapter.LONG.get(this, memoryArray, memoryArrayOffset + (long) i * Foreign.longSize());
+            array[index + i] = Int64Adapter.LONG.get(this, memoryArray, memoryArrayOffset + (long) i * Foreign.longSize());
         }
     }
     public void setLongArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -996,7 +1026,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.ADDRESS.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.addressSize(), array[index + i]);
+            Int64Adapter.ADDRESS.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.addressSize(), array[index + i]);
         }
     }
     public void getAddressArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -1008,7 +1038,7 @@ public abstract class AllocatorProvider {
         int size = index + length;
         if (size < 0 || size > array.length) throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Integer.toUnsignedString(size));
         for (int i = 0; i < length; i ++) {
-            ValueAdapter.ADDRESS.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.addressSize(), array[index + i]);
+            Int64Adapter.ADDRESS.set(this, memoryArray, memoryArrayOffset + (long) i * Foreign.addressSize(), array[index + i]);
         }
     }
     public void setAddressArray(Object memoryArray, long memoryArrayOffset, long[] array) {
@@ -1020,10 +1050,10 @@ public abstract class AllocatorProvider {
     public long getZeroTerminatedStringLength(Object memoryArray, long memoryArrayOffset, long maxLength) {
         return getZeroTerminatedStringLength(memoryArray, memoryArrayOffset, maxLength, null);
     }
-    public long getZeroTerminatedWideStringLength(Object memoryArray, long memoryArrayOffset) {
-        return getZeroTerminatedWideStringLength(memoryArray, memoryArrayOffset, Limits.ADDRESS_MAX);
+    public long getZeroTerminatedWStringLength(Object memoryArray, long memoryArrayOffset) {
+        return getZeroTerminatedWStringLength(memoryArray, memoryArrayOffset, Limits.ADDRESS_MAX);
     }
-    public long getZeroTerminatedWideStringLength(Object memoryArray, long memoryArrayOffset, long maxLength) {
+    public long getZeroTerminatedWStringLength(Object memoryArray, long memoryArrayOffset, long maxLength) {
         return getZeroTerminatedStringLength(memoryArray, memoryArrayOffset, maxLength, Foreign.wideCharset());
     }
     public long getZeroTerminatedStringLength(Object memoryArray, long memoryArrayOffset, Charset charset) {
@@ -1050,11 +1080,11 @@ public abstract class AllocatorProvider {
         }
         return array;
     }
-    public byte[] getZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset) {
-        return getZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, Integer.MAX_VALUE - 8);
+    public byte[] getZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset) {
+        return getZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, Integer.MAX_VALUE - 8);
     }
-    public byte[] getZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset, int maxLength) {
-        int length = (int) getZeroTerminatedWideStringLength(memoryArray, memoryArrayOffset, maxLength);
+    public byte[] getZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset, int maxLength) {
+        int length = (int) getZeroTerminatedWStringLength(memoryArray, memoryArrayOffset, maxLength);
         byte[] array = new byte[length];
         for (int i = 0; i < length; i ++) {
             array[i] = getChar(memoryArray, memoryArrayOffset + i);
@@ -1089,11 +1119,11 @@ public abstract class AllocatorProvider {
     public String getZeroTerminatedString(Object memoryArray, long memoryArrayOffset, int maxLength) {
         return new String(getZeroTerminatedCharArray(memoryArray, memoryArrayOffset, maxLength), Foreign.ansiCharset());
     }
-    public String getZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset) {
-        return getZeroTerminatedWideString(memoryArray, memoryArrayOffset, Integer.MAX_VALUE - 8);
+    public String getZeroTerminatedWString(Object memoryArray, long memoryArrayOffset) {
+        return getZeroTerminatedWString(memoryArray, memoryArrayOffset, Integer.MAX_VALUE - 8);
     }
-    public String getZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset, int maxLength) {
-        return new String(getZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, maxLength), Foreign.wideCharset());
+    public String getZeroTerminatedWString(Object memoryArray, long memoryArrayOffset, int maxLength) {
+        return new String(getZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, maxLength), Foreign.wideCharset());
     }
     public String getZeroTerminatedString(Object memoryArray, long memoryArrayOffset, Charset charset) {
         return getZeroTerminatedString(memoryArray, memoryArrayOffset, Integer.MAX_VALUE - 8, charset);
@@ -1117,10 +1147,10 @@ public abstract class AllocatorProvider {
         }
         setCharArray(memoryArray, memoryArrayOffset + length, "\0".getBytes(Foreign.ansiCharset()));
     }
-    public void setZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset, byte[] array) {
-        setZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, array, 0, array.length);
+    public void setZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset, byte[] array) {
+        setZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, array, 0, array.length);
     }
-    public void setZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset, byte[] array, int index, int length) {
+    public void setZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset, byte[] array, int index, int length) {
         for (int i = 0; i < length; i ++) {
             setChar(memoryArray, memoryArrayOffset + i, array[index + i]);
         }
@@ -1150,11 +1180,11 @@ public abstract class AllocatorProvider {
     public void setZeroTerminatedString(Object memoryArray, long memoryArrayOffset, String string, int index, int length) {
         setZeroTerminatedCharArray(memoryArray, memoryArrayOffset, string.getBytes(Foreign.ansiCharset()), index, length);
     }
-    public void setZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset, String string) {
-        setZeroTerminatedWideString(memoryArray, memoryArrayOffset, string, 0, string.length());
+    public void setZeroTerminatedWString(Object memoryArray, long memoryArrayOffset, String string) {
+        setZeroTerminatedWString(memoryArray, memoryArrayOffset, string, 0, string.length());
     }
-    public void setZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset, String string, int index, int length) {
-        setZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, string.getBytes(Foreign.wideCharset()), index, length);
+    public void setZeroTerminatedWString(Object memoryArray, long memoryArrayOffset, String string, int index, int length) {
+        setZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, string.getBytes(Foreign.wideCharset()), index, length);
     }
     public void setZeroTerminatedString(Object memoryArray, long memoryArrayOffset, String string, Charset charset) {
         setZeroTerminatedString(memoryArray, memoryArrayOffset, string, 0, string.length(), charset);
@@ -1172,14 +1202,14 @@ public abstract class AllocatorProvider {
         setUTF16(memoryArray, memoryArrayOffset + (long) length << 1, '\0');
     }
 
-    private abstract static class ValueAdapter {
+    private abstract static class Int64Adapter {
         
         public abstract long get(AllocatorProvider provider, Object array, long offset);
         public abstract void set(AllocatorProvider provider, Object array, long offset, long value);
         public abstract long get(AllocatorProvider provider, long address);
         public abstract void set(AllocatorProvider provider, long address, long value);
 
-        public static final ValueAdapter SIZE64 = new ValueAdapter() {
+        public static final Int64Adapter SIZE64 = new Int64Adapter() {
             @Override
             public long get(AllocatorProvider provider, Object array, long offset) {
                 return provider.getInt64(array, offset);
@@ -1198,13 +1228,14 @@ public abstract class AllocatorProvider {
             }
         };
 
-        public static final ValueAdapter SIZE32 = new ValueAdapter() {
+        public static final Int64Adapter SIZE32 = new Int64Adapter() {
             @Override
             public long get(AllocatorProvider provider, Object array, long offset) {
                 return (long) provider.getInt32(array, offset) & 0xFFFFFFFFL;
             }
             @Override
             public void set(AllocatorProvider provider, Object array, long offset, long value) {
+                if ((((value >> 32) + 1) & ~1) != 0) throw new ArithmeticException("integer overflow");
                 provider.setInt32(array, offset, (int) value);
             }
             @Override
@@ -1213,17 +1244,19 @@ public abstract class AllocatorProvider {
             }
             @Override
             public void set(AllocatorProvider provider, long address, long value) {
+                if ((((value >> 32) + 1) & ~1) != 0) throw new ArithmeticException("integer overflow");
                 provider.setInt32(address, (int) value);
             }
         };
 
-        public static final ValueAdapter SIZE16 = new ValueAdapter() {
+        public static final Int64Adapter SIZE16 = new Int64Adapter() {
             @Override
             public long get(AllocatorProvider provider, Object array, long offset) {
                 return (long) provider.getInt16(array, offset) & 0xFFFFL;
             }
             @Override
             public void set(AllocatorProvider provider, Object array, long offset, long value) {
+                if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 provider.setInt16(array, offset, (short) value);
             }
             @Override
@@ -1232,14 +1265,66 @@ public abstract class AllocatorProvider {
             }
             @Override
             public void set(AllocatorProvider provider, long address, long value) {
+                if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 provider.setInt16(address, (short) value);
             }
         };
 
-        public static final ValueAdapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
-        public static final ValueAdapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
-        public static final ValueAdapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
-        public static final ValueAdapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+        public static final Int64Adapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
+        public static final Int64Adapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
+        public static final Int64Adapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
+        public static final Int64Adapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+
+    }
+
+    private abstract static class Int32Adapter {
+
+        public abstract int get(AllocatorProvider provider, Object array, long offset);
+        public abstract void set(AllocatorProvider provider, Object array, long offset, int value);
+        public abstract int get(AllocatorProvider provider, long address);
+        public abstract void set(AllocatorProvider provider, long address, int value);
+
+        public static final Int32Adapter SIZE32 = new Int32Adapter() {
+            @Override
+            public int get(AllocatorProvider provider, Object array, long offset) {
+                return provider.getInt32(array, offset);
+            }
+            @Override
+            public void set(AllocatorProvider provider, Object array, long offset, int value) {
+                provider.setInt32(array, offset, value);
+            }
+            @Override
+            public int get(AllocatorProvider provider, long address) {
+                return provider.getInt32(address);
+            }
+            @Override
+            public void set(AllocatorProvider provider, long address, int value) {
+                provider.setInt32(address, value);
+            }
+        };
+
+        public static final Int32Adapter SIZE16 = new Int32Adapter() {
+            @Override
+            public int get(AllocatorProvider provider, Object array, long offset) {
+                return (int) provider.getInt16(array, offset) & 0xFFFF;
+            }
+            @Override
+            public void set(AllocatorProvider provider, Object array, long offset, int value) {
+                if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
+                provider.setInt16(array, offset, (short) value);
+            }
+            @Override
+            public int get(AllocatorProvider provider, long address) {
+                return (int) provider.getInt16(address) & 0xFFFF;
+            }
+            @Override
+            public void set(AllocatorProvider provider, long address, int value) {
+                if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
+                provider.setInt16(address, (short) value);
+            }
+        };
+
+        public static final Int32Adapter WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
 
     }
 

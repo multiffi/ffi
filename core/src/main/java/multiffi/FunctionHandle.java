@@ -2,7 +2,7 @@ package multiffi;
 
 import java.util.List;
 
-public abstract class FunctionPointer {
+public abstract class FunctionHandle {
 
     public abstract long address();
 
@@ -29,25 +29,25 @@ public abstract class FunctionPointer {
 
     private abstract static class InvokeAdapter {
 
-        public abstract long invoke(FunctionPointer function, Object... args);
+        public abstract long invoke(FunctionHandle function, Object... args);
 
         public static final InvokeAdapter SIZE64 = new InvokeAdapter() {
             @Override
-            public long invoke(FunctionPointer function, Object... args) {
+            public long invoke(FunctionHandle function, Object... args) {
                 return function.invokeInt64(args);
             }
         };
 
         public static final InvokeAdapter SIZE32 = new InvokeAdapter() {
             @Override
-            public long invoke(FunctionPointer function, Object... args) {
+            public long invoke(FunctionHandle function, Object... args) {
                 return function.invokeInt32(args) & 0xFFFFFFFFL;
             }
         };
 
         public static final InvokeAdapter SIZE16 = new InvokeAdapter() {
             @Override
-            public long invoke(FunctionPointer function, Object... args) {
+            public long invoke(FunctionHandle function, Object... args) {
                 return function.invokeInt16(args) & 0xFFFFL;
             }
         };

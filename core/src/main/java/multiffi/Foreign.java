@@ -14,7 +14,7 @@ public final class Foreign {
     public static final int EXIT_SUCCESS = 0;
     public static final int EXIT_FAILURE = 1;
 
-    public static final long NULL = 0;
+    public static final long NULL = 0L;
     public static final int EOF = -1;
 
     private Foreign() {
@@ -39,8 +39,8 @@ public final class Foreign {
         return IMPLEMENTATION.longSize();
     }
 
-    public static long wideCharSize() {
-        return IMPLEMENTATION.wideCharSize();
+    public static long wcharSize() {
+        return IMPLEMENTATION.wcharSize();
     }
 
     public static long pageSize() {
@@ -155,36 +155,54 @@ public final class Foreign {
         return IMPLEMENTATION.getLastErrorString();
     }
 
-    public static FunctionPointer downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public static FunctionHandle downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return IMPLEMENTATION.downcallHandle(address, firstVarArg, returnType, parameterTypes, options);
     }
 
-    public static FunctionPointer downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
+    public static FunctionHandle downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
         return IMPLEMENTATION.downcallHandle(address, firstVarArg, returnType, parameterTypes);
     }
 
-    public static FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public static FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return IMPLEMENTATION.downcallHandle(address, returnType, parameterTypes, options);
     }
 
-    public static FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType... parameterTypes) {
+    public static FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType... parameterTypes) {
         return IMPLEMENTATION.downcallHandle(address, returnType, parameterTypes);
     }
 
-    public static Object downcallProxy(ClassLoader classLoader, Class<?>... classes) {
-        return IMPLEMENTATION.downcallProxy(classLoader, classes);
+    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
+                                   long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallInterface(classLoader, clazz, address, firstVararg, returnType, parameterTypes, options);
     }
 
-    public static Object downcallProxy(Class<?>... classes) {
-        return IMPLEMENTATION.downcallProxy(classes);
+    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallInterface(clazz, address, firstVararg, returnType, parameterTypes);
     }
 
-    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
-        return IMPLEMENTATION.downcallProxy(classLoader, clazz);
+    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
+                                   long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallInterface(classLoader, clazz, address, returnType, parameterTypes, options);
     }
 
-    public static <T> T downcallProxy(Class<T> clazz) {
-        return IMPLEMENTATION.downcallProxy(clazz);
+    public <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallInterface(clazz, address, returnType, parameterTypes);
+    }
+
+    public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
+        return IMPLEMENTATION.downcallProxy(classLoader, classes, callOptionVisitor);
+    }
+
+    public Object downcallProxy(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
+        return IMPLEMENTATION.downcallProxy(classes, callOptionVisitor);
+    }
+
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, CallOptionVisitor callOptionVisitor) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, callOptionVisitor);
+    }
+
+    public <T> T downcallProxy(Class<T> clazz, CallOptionVisitor callOptionVisitor) {
+        return IMPLEMENTATION.downcallProxy(clazz, callOptionVisitor);
     }
 
     public static long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {

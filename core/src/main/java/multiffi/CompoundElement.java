@@ -1,15 +1,13 @@
 package multiffi;
 
-public final class Member {
-
-    static final Member[] EMPTY_MEMBER_ARRAY = new Member[0];
+public final class CompoundElement {
 
     private final ForeignType type;
     private final long offset;
     private final long repetition;
     private final long size;
 
-    Member(ForeignType type, long offset, long repetition) {
+    CompoundElement(ForeignType type, long offset, long repetition) {
         this.type = type;
         if (offset < 0) throw new IllegalArgumentException("Negative member offset");
         else this.offset = offset;
@@ -38,7 +36,7 @@ public final class Member {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
 
-        Member that = (Member) object;
+        CompoundElement that = (CompoundElement) object;
 
         return size == that.size;
     }

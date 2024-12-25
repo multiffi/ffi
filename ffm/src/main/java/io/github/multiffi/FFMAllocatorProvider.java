@@ -8,37 +8,73 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Array;
 
-@SuppressWarnings({"restricted", "deprecated", "removal"})
+@SuppressWarnings({"deprecation", "removal"})
 public class FFMAllocatorProvider extends AllocatorProvider {
 
     private static final class StdlibHolder {
         private StdlibHolder() {
             throw new UnsupportedOperationException();
         }
-        public static final MethodHandle CALLOC;
-        public static final MethodHandle MEMCHR;
-        public static final MethodHandle MEMCMP;
+        public static final MethodHandle MALLOC_HANDLE;
+        public static final MethodHandle FREE_HANDLE;
+        public static final MethodHandle CALLOC_HANDLE;
+        public static final MethodHandle REALLOC_HANDLE;
+        public static final MethodHandle MEMCHR_HANDLE;
+        public static final MethodHandle MEMCMP_HANDLE;
         static {
             SymbolLookup stdlib = FFMUtil.ABIHolder.LINKER.defaultLookup();
-            MemorySegment address = stdlib.find("calloc")
+            MemorySegment address = stdlib.find("malloc")
+                    .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `malloc`"));
+            FunctionDescriptor signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T);
+            MALLOC_HANDLE = MethodHandles.filterReturnValue(
+                    FFMMethodFilters.filterAddressArgument(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0, false),
+                    FFMMethodFilters.SEGMENT_TO_INT64);
+            address = stdlib.find("free")
+                    .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `free`"));
+            signature = FunctionDescriptor.ofVoid(ValueLayout.ADDRESS);
+            FREE_HANDLE = MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
+                    FFMMethodFilters.INT64_TO_SEGMENT);
+            address = stdlib.find("calloc")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `calloc`"));
-            FunctionDescriptor signature = FunctionDescriptor.of(FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T);
-            CALLOC = FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature);
+            signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T);
+            CALLOC_HANDLE = MethodHandles.filterReturnValue(
+                    FFMMethodFilters.filterAddressArgument(
+                            FFMMethodFilters.filterAddressArgument(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0, false), 1, false),
+                    FFMMethodFilters.SEGMENT_TO_INT64);
+            address = stdlib.find("realloc")
+                    .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `realloc`"));
+            signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T);
+            REALLOC_HANDLE = MethodHandles.filterReturnValue(
+                    FFMMethodFilters.filterAddressArgument(
+                            MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
+                                    FFMMethodFilters.INT64_TO_SEGMENT), 1, false),
+                    FFMMethodFilters.SEGMENT_TO_INT64);
             address = stdlib.find("memchr")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `memchr`"));
-            signature = FunctionDescriptor.of(FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T, ValueLayout.JAVA_INT, FFMUtil.ABIHolder.SIZE_T);
-            MEMCHR = FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature);
+            signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.ABIHolder.INT, FFMUtil.ABIHolder.SIZE_T);
+            MEMCHR_HANDLE = MethodHandles.filterReturnValue(
+                    FFMMethodFilters.filterAddressArgument(
+                            FFMMethodFilters.filterIntArgument(
+                                    MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
+                                            FFMMethodFilters.INT64_TO_SEGMENT), 1, false), 2, false), FFMMethodFilters.SEGMENT_TO_INT64);
             address = stdlib.find("memcmp")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `memcmp`"));
-            signature = FunctionDescriptor.of(ValueLayout.JAVA_INT, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T);
-            MEMCMP = FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature);
+            signature = FunctionDescriptor.of(FFMUtil.ABIHolder.INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T);
+            MEMCMP_HANDLE = FFMMethodFilters.filterIntReturnValue(
+                    FFMMethodFilters.filterAddressArgument(
+                            MethodHandles.filterArguments(
+                                    MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature)
+                                            , 0, FFMMethodFilters.INT64_TO_SEGMENT), 1, FFMMethodFilters.INT64_TO_SEGMENT), 2, false), false);
         }
     }
 
-    private static long checkAddress(long address, long offset) {
-        return FFMUtil.checkAddress(FFMUtil.unsignedAddExact(address, offset));
+    private static long unsignedAddExact(long x, long y) {
+        long sum = x + y;
+        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
+        return sum;
     }
 
     private static long getArrayContentSize(Object array) {
@@ -50,20 +86,26 @@ public class FFMAllocatorProvider extends AllocatorProvider {
 
     private static void checkArray(Object array, long arrayOffset, long size) {
         long arrayLength = getArrayContentSize(array);
-        long index = FFMUtil.unsignedAddExact(arrayOffset, size);
+        long index = unsignedAddExact(arrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
     }
 
     @Override
     public long allocate(long size) {
-        return FFMUtil.UnsafeHolder.UNSAFE.allocateMemory(size);
+        try {
+            return (long) StdlibHolder.MALLOC_HANDLE.invokeExact(size);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
     public long allocateInitialized(long count, long size) {
         try {
-            return (long) StdlibHolder.CALLOC.invokeExact(count, size);
+            return (long) StdlibHolder.CALLOC_HANDLE.invokeExact(count, size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -73,18 +115,30 @@ public class FFMAllocatorProvider extends AllocatorProvider {
 
     @Override
     public long reallocate(long address, long size) {
-        return FFMUtil.UnsafeHolder.UNSAFE.reallocateMemory(address, size);
+        try {
+            return (long) StdlibHolder.REALLOC_HANDLE.invokeExact(address, size);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
     public void free(long address) {
-       FFMUtil.UnsafeHolder.UNSAFE.freeMemory(address);
+       try {
+           StdlibHolder.FREE_HANDLE.invokeExact(address);
+       } catch (RuntimeException | Error e) {
+           throw e;
+       } catch (Throwable e) {
+           throw new IllegalStateException(e);
+       }
     }
 
     @Override
     public long search(long address, byte value, long maxLength) {
         try {
-            return (long) StdlibHolder.MEMCHR.invokeExact(FFMUtil.checkAddress(address), value, maxLength);
+            return (long) StdlibHolder.MEMCHR_HANDLE.invokeExact(address, value, maxLength);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -109,7 +163,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public int compare(long aAddress, long bAddress, long size) {
         try {
-            return (int) StdlibHolder.MEMCMP.invokeExact(FFMUtil.checkAddress(aAddress), FFMUtil.checkAddress(bAddress), size);
+            return (int) StdlibHolder.MEMCMP_HANDLE.invokeExact(aAddress, bAddress, size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -120,10 +174,10 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public int compare(long aAddress, Object bArray, long bArrayOffset, long size) {
         long arrayLength = getArrayContentSize(bArray);
-        long index = FFMUtil.unsignedAddExact(bArrayOffset, size);
+        long index = unsignedAddExact(bArrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        checkAddress(aAddress, size);
+        unsignedAddExact(aAddress, size);
         long arrayBaseOffset = FFMUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(bArray.getClass());
         for (long i = 0; i < size; i ++) {
             int cmp = Byte.compareUnsigned(FFMUtil.UnsafeHolder.UNSAFE.getByte(aAddress + i),
@@ -136,10 +190,10 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public int compare(Object aArray, long aArrayOffset, long bAddress, long size) {
         long arrayLength = getArrayContentSize(aArray);
-        long index = FFMUtil.unsignedAddExact(aArrayOffset, size);
+        long index = unsignedAddExact(aArrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        checkAddress(bAddress, size);
+        unsignedAddExact(bAddress, size);
         long arrayBaseOffset = FFMUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
         for (long i = 0; i < size; i ++) {
             int cmp = Byte.compareUnsigned(FFMUtil.UnsafeHolder.UNSAFE.getByte(aArray, arrayBaseOffset + aArrayOffset + i),
@@ -153,10 +207,10 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     public int compare(Object aArray, long aArrayOffset, Object bArray, long bArrayOffset, long size) {
         long aArrayLength = getArrayContentSize(aArray);
         long bArrayLength = getArrayContentSize(bArray);
-        long index = FFMUtil.unsignedAddExact(aArrayOffset, size);
+        long index = unsignedAddExact(aArrayOffset, size);
         if (index < 0 || index > aArrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        index = FFMUtil.unsignedAddExact(bArrayOffset, size);
+        index = unsignedAddExact(bArrayOffset, size);
         if (index < 0 || index > bArrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         long aArrayBaseOffset = FFMUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
@@ -178,7 +232,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public Object fill(Object array, long arrayOffset, byte value, long size) {
         long arrayLength = getArrayContentSize(array);
-        long index = FFMUtil.unsignedAddExact(arrayOffset, size);
+        long index = unsignedAddExact(arrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         FFMUtil.UnsafeHolder.UNSAFE.setMemory(array, arrayOffset, size, value);
@@ -194,10 +248,10 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public long copy(long destAddress, Object srcArray, long srcArrayOffset, long size) {
         long arrayLength = getArrayContentSize(srcArray);
-        long index = FFMUtil.unsignedAddExact(srcArrayOffset, size);
+        long index = unsignedAddExact(srcArrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        checkAddress(destAddress, size);
+        unsignedAddExact(destAddress, size);
         MemorySegment memorySegment;
         if (srcArray instanceof byte[]) memorySegment = MemorySegment.ofArray((byte[]) srcArray);
         else if (srcArray instanceof char[]) memorySegment = MemorySegment.ofArray((char[]) srcArray);
@@ -221,10 +275,10 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public Object copy(Object destArray, long destArrayOffset, long srcAddress, long size) {
         long arrayLength = getArrayContentSize(destArray);
-        long index = FFMUtil.unsignedAddExact(destArrayOffset, size);
+        long index = unsignedAddExact(destArrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        checkAddress(srcAddress, size);
+        unsignedAddExact(srcAddress, size);
         MemorySegment memorySegment;
         if (destArray instanceof byte[]) memorySegment = MemorySegment.ofArray((byte[]) destArray);
         else if (destArray instanceof char[]) memorySegment = MemorySegment.ofArray((char[]) destArray);
@@ -249,10 +303,10 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     public Object copy(Object destArray, long destArrayOffset, Object srcArray, long srcArrayOffset, long size) {
         long destArrayLength = getArrayContentSize(destArray);
         long srcArrayLength = getArrayContentSize(srcArray);
-        long index = FFMUtil.unsignedAddExact(destArrayOffset, size);
+        long index = unsignedAddExact(destArrayOffset, size);
         if (index < 0 || index > destArrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        index = FFMUtil.unsignedAddExact(srcArrayOffset, size);
+        index = unsignedAddExact(srcArrayOffset, size);
         if (index < 0 || index > srcArrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         long destArrayBaseOffset = FFMUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(destArray.getClass());

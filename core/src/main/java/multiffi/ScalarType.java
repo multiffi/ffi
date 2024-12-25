@@ -17,7 +17,11 @@ public final class ScalarType extends ForeignType {
     /**
      * Java {@code byte}; C/C++ {@code char} {@code int8_t}
      */
-    public static final ScalarType CHAR = INT8;
+    public static final ScalarType CHAR = new ScalarType(byte.class, 1);
+    /**
+     * C/C++ {@code wchar_t}
+     */
+    public static final ScalarType WCHAR = new ScalarType(Foreign.wcharSize() == 4 ? int.class : char.class, Foreign.wcharSize());
     /**
      * Java {@code short}; C/C++ {@code int16_t}
      */
@@ -31,21 +35,25 @@ public final class ScalarType extends ForeignType {
      */
     public static final ScalarType INT64 = new ScalarType(long.class, 8);
     /**
-     * C/C++ {@code void *} {@code size_t}
+     * C/C++ {@code void *}
      */
-    public static final ScalarType ADDRESS = Foreign.addressSize() == 8 ? INT64 : INT32;
+    public static final ScalarType ADDRESS = new ScalarType(Foreign.addressSize() == 8 ? long.class : int.class, Foreign.addressSize());
+    /**
+     * C/C++ {@code size_t}
+     */
+    public static final ScalarType SIZE = new ScalarType(Foreign.addressSize() == 8 ? long.class : int.class, Foreign.addressSize());
     /**
      * C/C++ {@code long} {@code long long}
      */
-    public static final ScalarType LONG = Foreign.longSize() == 8 ? INT64 : INT32;
+    public static final ScalarType LONG = new ScalarType(Foreign.longSize() == 8 ? long.class : int.class, Foreign.longSize());
     /**
      * C/C++ {@code int} {@code long int}
      */
-    public static final ScalarType INT = Foreign.intSize() == 8 ? INT64 : INT32;
+    public static final ScalarType INT = new ScalarType(Foreign.intSize() == 8 ? long.class : int.class, Foreign.intSize());
     /**
      * C/C++ {@code short}
      */
-    public static final ScalarType SHORT = Foreign.shortSize() == 8 ? INT64 : INT16;
+    public static final ScalarType SHORT = new ScalarType(Foreign.shortSize() == 8 ? long.class : short.class, Foreign.shortSize());
     /**
      * Java/C/C++ {@code float}
      */
@@ -58,7 +66,7 @@ public final class ScalarType extends ForeignType {
     private final Class<?> carrier;
     private final long size;
 
-    private ScalarType(Class<?> carrier, int size) {
+    private ScalarType(Class<?> carrier, long size) {
         this.carrier = carrier;
         this.size = size;
     }
@@ -94,13 +102,13 @@ public final class ScalarType extends ForeignType {
     }
 
     @Override
-    public Member getMember(int index) throws IndexOutOfBoundsException {
-        return Member.EMPTY_MEMBER_ARRAY[index];
+    public CompoundElement getElement(int index) throws IndexOutOfBoundsException {
+        return Util.EMPTY_COMPOUND_ELEMENT_ARRAY[index];
     }
 
     @Override
-    public Member[] getMembers() {
-        return Member.EMPTY_MEMBER_ARRAY;
+    public CompoundElement[] getElements() {
+        return Util.EMPTY_COMPOUND_ELEMENT_ARRAY;
     }
 
     @Override

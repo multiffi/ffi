@@ -6,6 +6,9 @@ final class Util {
         throw new AssertionError("No multiffi.Util instances for you!");
     }
 
+    public static final CallOption[] EMPTY_CALL_OPTION_ARRAY = new CallOption[0];
+    public static final CompoundElement[] EMPTY_COMPOUND_ELEMENT_ARRAY = new CompoundElement[0];
+
     public static long unsignedAddExact(long x, long y) {
         long sum = x + y;
         if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");

@@ -2,8 +2,6 @@ package multiffi;
 
 public abstract class ForeignType {
 
-    public static final ForeignType VOID = null;
-
     public abstract long size();
     public abstract Class<?> carrier();
 
@@ -15,8 +13,8 @@ public abstract class ForeignType {
         return !isScalar();
     }
 
-    public abstract Member getMember(int index) throws IndexOutOfBoundsException;
-    public abstract Member[] getMembers();
+    public abstract CompoundElement getElement(int index) throws IndexOutOfBoundsException;
+    public abstract CompoundElement[] getElements();
     public abstract ForeignType getComponentType();
 
     @Override

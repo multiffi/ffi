@@ -360,11 +360,11 @@ public final class Allocator {
     public static long getZeroTerminatedStringLength(long address, long maxLength) {
         return IMPLEMENTATION.getZeroTerminatedStringLength(address, maxLength);
     }
-    public static long getZeroTerminatedWideStringLength(long address) {
-        return IMPLEMENTATION.getZeroTerminatedWideStringLength(address);
+    public static long getZeroTerminatedWStringLength(long address) {
+        return IMPLEMENTATION.getZeroTerminatedWStringLength(address);
     }
-    public static long getZeroTerminatedWideStringLength(long address, long maxLength) {
-        return IMPLEMENTATION.getZeroTerminatedWideStringLength(address, maxLength);
+    public static long getZeroTerminatedWStringLength(long address, long maxLength) {
+        return IMPLEMENTATION.getZeroTerminatedWStringLength(address, maxLength);
     }
     public static long getZeroTerminatedStringLength(long address, Charset charset) {
         return IMPLEMENTATION.getZeroTerminatedStringLength(address, charset);
@@ -384,11 +384,11 @@ public final class Allocator {
     public static byte[] getZeroTerminatedCharArray(long address, int maxLength) {
         return IMPLEMENTATION.getZeroTerminatedCharArray(address, maxLength);
     }
-    public static byte[] getZeroTerminatedWideCharArray(long address) {
-        return IMPLEMENTATION.getZeroTerminatedWideCharArray(address);
+    public static byte[] getZeroTerminatedWCharArray(long address) {
+        return IMPLEMENTATION.getZeroTerminatedWCharArray(address);
     }
-    public static byte[] getZeroTerminatedWideCharArray(long address, int maxLength) {
-        return IMPLEMENTATION.getZeroTerminatedWideCharArray(address, maxLength);
+    public static byte[] getZeroTerminatedWCharArray(long address, int maxLength) {
+        return IMPLEMENTATION.getZeroTerminatedWCharArray(address, maxLength);
     }
     public static byte[] getZeroTerminatedCharArray(long address, Charset charset) {
         return IMPLEMENTATION.getZeroTerminatedCharArray(address, charset);
@@ -408,11 +408,11 @@ public final class Allocator {
     public static String getZeroTerminatedString(long address, int maxLength) {
         return IMPLEMENTATION.getZeroTerminatedString(address, maxLength);
     }
-    public static String getZeroTerminatedWideString(long address) {
-        return IMPLEMENTATION.getZeroTerminatedWideString(address);
+    public static String getZeroTerminatedWString(long address) {
+        return IMPLEMENTATION.getZeroTerminatedWString(address);
     }
-    public static String getZeroTerminatedWideString(long address, int maxLength) {
-        return IMPLEMENTATION.getZeroTerminatedWideString(address, maxLength);
+    public static String getZeroTerminatedWString(long address, int maxLength) {
+        return IMPLEMENTATION.getZeroTerminatedWString(address, maxLength);
     }
     public static String getZeroTerminatedString(long address, Charset charset) {
         return IMPLEMENTATION.getZeroTerminatedString(address, charset);
@@ -432,11 +432,11 @@ public final class Allocator {
     public static void setZeroTerminatedCharArray(long address, byte[] array, int index, int length) {
         IMPLEMENTATION.setZeroTerminatedCharArray(address, array, index, length);
     }
-    public static void setZeroTerminatedWideCharArray(long address, byte[] array) {
-        IMPLEMENTATION.setZeroTerminatedWideCharArray(address, array);
+    public static void setZeroTerminatedWCharArray(long address, byte[] array) {
+        IMPLEMENTATION.setZeroTerminatedWCharArray(address, array);
     }
-    public static void setZeroTerminatedWideCharArray(long address, byte[] array, int index, int length) {
-        IMPLEMENTATION.setZeroTerminatedWideCharArray(address, array, index, length);
+    public static void setZeroTerminatedWCharArray(long address, byte[] array, int index, int length) {
+        IMPLEMENTATION.setZeroTerminatedWCharArray(address, array, index, length);
     }
     public static void setZeroTerminatedCharArray(long address, byte[] array, Charset charset) {
         IMPLEMENTATION.setZeroTerminatedCharArray(address, array, charset);
@@ -456,11 +456,11 @@ public final class Allocator {
     public static void setZeroTerminatedString(long address, String string, int index, int length) {
         IMPLEMENTATION.setZeroTerminatedString(address, string, index, length);
     }
-    public static void setZeroTerminatedWideString(long address, String string) {
-        IMPLEMENTATION.setZeroTerminatedWideString(address, string);
+    public static void setZeroTerminatedWString(long address, String string) {
+        IMPLEMENTATION.setZeroTerminatedWString(address, string);
     }
-    public static void setZeroTerminatedWideString(long address, String string, int index, int length) {
-        IMPLEMENTATION.setZeroTerminatedWideString(address, string, index, length);
+    public static void setZeroTerminatedWString(long address, String string, int index, int length) {
+        IMPLEMENTATION.setZeroTerminatedWString(address, string, index, length);
     }
     public static void setZeroTerminatedString(long address, String string, Charset charset) {
         IMPLEMENTATION.setZeroTerminatedString(address, string, charset);
@@ -725,11 +725,11 @@ public final class Allocator {
     public static long getZeroTerminatedStringLength(Object memoryArray, long memoryArrayOffset, long maxLength) {
         return IMPLEMENTATION.getZeroTerminatedStringLength(memoryArray, memoryArrayOffset, maxLength);
     }
-    public static long getZeroTerminatedWideStringLength(Object memoryArray, long memoryArrayOffset) {
-        return IMPLEMENTATION.getZeroTerminatedWideStringLength(memoryArray, memoryArrayOffset);
+    public static long getZeroTerminatedWStringLength(Object memoryArray, long memoryArrayOffset) {
+        return IMPLEMENTATION.getZeroTerminatedWStringLength(memoryArray, memoryArrayOffset);
     }
-    public static long getZeroTerminatedWideStringLength(Object memoryArray, long memoryArrayOffset, long maxLength) {
-        return IMPLEMENTATION.getZeroTerminatedWideStringLength(memoryArray, memoryArrayOffset, maxLength);
+    public static long getZeroTerminatedWStringLength(Object memoryArray, long memoryArrayOffset, long maxLength) {
+        return IMPLEMENTATION.getZeroTerminatedWStringLength(memoryArray, memoryArrayOffset, maxLength);
     }
     public static long getZeroTerminatedStringLength(Object memoryArray, long memoryArrayOffset, Charset charset) {
         return IMPLEMENTATION.getZeroTerminatedStringLength(memoryArray, memoryArrayOffset, charset);
@@ -749,11 +749,11 @@ public final class Allocator {
     public static byte[] getZeroTerminatedCharArray(Object memoryArray, long memoryArrayOffset, int maxLength) {
         return IMPLEMENTATION.getZeroTerminatedCharArray(memoryArray, memoryArrayOffset, maxLength);
     }
-    public static byte[] getZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset) {
-        return IMPLEMENTATION.getZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset);
+    public static byte[] getZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset) {
+        return IMPLEMENTATION.getZeroTerminatedWCharArray(memoryArray, memoryArrayOffset);
     }
-    public static byte[] getZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset, int maxLength) {
-        return IMPLEMENTATION.getZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, maxLength);
+    public static byte[] getZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset, int maxLength) {
+        return IMPLEMENTATION.getZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, maxLength);
     }
     public static byte[] getZeroTerminatedCharArray(Object memoryArray, long memoryArrayOffset, Charset charset) {
         return IMPLEMENTATION.getZeroTerminatedCharArray(memoryArray, memoryArrayOffset, charset);
@@ -773,11 +773,11 @@ public final class Allocator {
     public static String getZeroTerminatedString(Object memoryArray, long memoryArrayOffset, int maxLength) {
         return IMPLEMENTATION.getZeroTerminatedString(memoryArray, memoryArrayOffset, maxLength);
     }
-    public static String getZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset) {
-        return IMPLEMENTATION.getZeroTerminatedWideString(memoryArray, memoryArrayOffset);
+    public static String getZeroTerminatedWString(Object memoryArray, long memoryArrayOffset) {
+        return IMPLEMENTATION.getZeroTerminatedWString(memoryArray, memoryArrayOffset);
     }
-    public static String getZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset, int maxLength) {
-        return IMPLEMENTATION.getZeroTerminatedWideString(memoryArray, memoryArrayOffset, maxLength);
+    public static String getZeroTerminatedWString(Object memoryArray, long memoryArrayOffset, int maxLength) {
+        return IMPLEMENTATION.getZeroTerminatedWString(memoryArray, memoryArrayOffset, maxLength);
     }
     public static String getZeroTerminatedString(Object memoryArray, long memoryArrayOffset, Charset charset) {
         return IMPLEMENTATION.getZeroTerminatedString(memoryArray, memoryArrayOffset, charset);
@@ -797,11 +797,11 @@ public final class Allocator {
     public static void setZeroTerminatedCharArray(Object memoryArray, long memoryArrayOffset, byte[] array, int index, int length) {
         IMPLEMENTATION.setZeroTerminatedCharArray(memoryArray, memoryArrayOffset, array, index, length);
     }
-    public static void setZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset, byte[] array) {
-        IMPLEMENTATION.setZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, array);
+    public static void setZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset, byte[] array) {
+        IMPLEMENTATION.setZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, array);
     }
-    public static void setZeroTerminatedWideCharArray(Object memoryArray, long memoryArrayOffset, byte[] array, int index, int length) {
-        IMPLEMENTATION.setZeroTerminatedWideCharArray(memoryArray, memoryArrayOffset, array, index, length);
+    public static void setZeroTerminatedWCharArray(Object memoryArray, long memoryArrayOffset, byte[] array, int index, int length) {
+        IMPLEMENTATION.setZeroTerminatedWCharArray(memoryArray, memoryArrayOffset, array, index, length);
     }
     public static void setZeroTerminatedCharArray(Object memoryArray, long memoryArrayOffset, byte[] array, Charset charset) {
         IMPLEMENTATION.setZeroTerminatedCharArray(memoryArray, memoryArrayOffset, array, charset);
@@ -821,11 +821,11 @@ public final class Allocator {
     public static void setZeroTerminatedString(Object memoryArray, long memoryArrayOffset, String string, int index, int length) {
         IMPLEMENTATION.setZeroTerminatedString(memoryArray, memoryArrayOffset, string, index, length);
     }
-    public static void setZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset, String string) {
-        IMPLEMENTATION.setZeroTerminatedWideString(memoryArray, memoryArrayOffset, string);
+    public static void setZeroTerminatedWString(Object memoryArray, long memoryArrayOffset, String string) {
+        IMPLEMENTATION.setZeroTerminatedWString(memoryArray, memoryArrayOffset, string);
     }
-    public static void setZeroTerminatedWideString(Object memoryArray, long memoryArrayOffset, String string, int index, int length) {
-        IMPLEMENTATION.setZeroTerminatedWideString(memoryArray, memoryArrayOffset, string, index, length);
+    public static void setZeroTerminatedWString(Object memoryArray, long memoryArrayOffset, String string, int index, int length) {
+        IMPLEMENTATION.setZeroTerminatedWString(memoryArray, memoryArrayOffset, string, index, length);
     }
     public static void setZeroTerminatedString(Object memoryArray, long memoryArrayOffset, String string, Charset charset) {
         IMPLEMENTATION.setZeroTerminatedString(memoryArray, memoryArrayOffset, string, charset);

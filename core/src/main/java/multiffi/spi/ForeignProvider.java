@@ -1,8 +1,9 @@
 package multiffi.spi;
 
+import multiffi.CallOptionVisitor;
 import multiffi.CallOption;
 import multiffi.ForeignType;
-import multiffi.FunctionPointer;
+import multiffi.FunctionHandle;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,7 +52,7 @@ public abstract class ForeignProvider {
     public abstract long shortSize();
     public abstract long intSize();
     public abstract long longSize();
-    public abstract long wideCharSize();
+    public abstract long wcharSize();
     public abstract long pageSize();
 
     public abstract Charset ansiCharset();
@@ -105,26 +106,69 @@ public abstract class ForeignProvider {
     }
 
     private static final CallOption[] EMPTY_CALL_OPTION_ARRAY = new CallOption[0];
-    public abstract FunctionPointer downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
-    public FunctionPointer downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+    public abstract FunctionHandle downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
+    public FunctionHandle downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
         return downcallHandle(address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
-    public FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return downcallHandle(address, -1, returnType, parameterTypes, options);
     }
-    public FunctionPointer downcallHandle(long address, ForeignType returnType, ForeignType... parameterTypes) {
+    public FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType... parameterTypes) {
         return downcallHandle(address, -1, returnType, parameterTypes);
     }
-    public abstract Object downcallProxy(ClassLoader classLoader, Class<?>... classes);
-    public Object downcallProxy(Class<?>... classes) {
-        return downcallProxy(null, classes);
+    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
+                                            long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        Objects.requireNonNull(clazz);
+        boolean hasMethod = false;
+        for (Method method : clazz.getMethods()) {
+            if (!method.isDefault() && method.getDeclaringClass() != Object.class) {
+                if (hasMethod) throw new IllegalArgumentException(clazz + " not a functional interface");
+                else hasMethod = true;
+            }
+        }
+        return downcallProxy(classLoader, clazz, new CallOptionVisitor() {
+            @Override
+            public long visitAddress(Method method) {
+                return address;
+            }
+            @Override
+            public int visitFirstVariadicArgument(Method method) {
+                return firstVararg;
+            }
+            @Override
+            public ForeignType visitReturnType(Method method) {
+                return returnType;
+            }
+            @Override
+            public ForeignType[] visitParameterTypes(Method method) {
+                return parameterTypes;
+            }
+            @Override
+            public CallOption[] visitCallOptions(Method method) {
+                return options;
+            }
+        });
+    }
+    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallInterface(null, clazz, address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    }
+    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
+                                   long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallInterface(classLoader, clazz, address, -1, returnType, parameterTypes, options);
+    }
+    public <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallInterface(null, clazz, address, -1, returnType, parameterTypes);
+    }
+    public abstract Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor);
+    public Object downcallProxy(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
+        return downcallProxy(null, classes, callOptionVisitor);
     }
     @SuppressWarnings("unchecked")
-    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
-        return (T) downcallProxy(classLoader, new Class<?>[] { clazz });
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, CallOptionVisitor callOptionVisitor) {
+        return (T) downcallProxy(classLoader, new Class<?>[] { clazz }, callOptionVisitor);
     }
-    public <T> T downcallProxy(Class<T> clazz) {
-        return downcallProxy(null, clazz);
+    public <T> T downcallProxy(Class<T> clazz, CallOptionVisitor callOptionVisitor) {
+        return downcallProxy(null, clazz, callOptionVisitor);
     }
     public abstract long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
     public long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {

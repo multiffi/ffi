@@ -1,13 +1,12 @@
 package io.github.multiffi;
 
 import multiffi.CallOption;
-import multiffi.CallOptions;
-import multiffi.FirstVararg;
+import multiffi.CallOptionVisitor;
+import multiffi.Foreign;
 import multiffi.ForeignType;
-import multiffi.FunctionPointer;
-import multiffi.MarshalAs;
+import multiffi.FunctionHandle;
 import multiffi.MemoryHandle;
-import multiffi.RedirectTo;
+import multiffi.ScalarType;
 import multiffi.StandardCallOption;
 import multiffi.UnsatisfiedLinkException;
 import multiffi.spi.ForeignProvider;
@@ -49,7 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
-@SuppressWarnings({"deprecated", "removal"})
+@SuppressWarnings({"deprecation", "removal"})
 public class FFMForeignProvider extends ForeignProvider {
 
     @Override
@@ -73,7 +72,7 @@ public class FFMForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public long wideCharSize() {
+    public long wcharSize() {
         return FFMUtil.ABIHolder.WCHAR_T.byteSize();
     }
 
@@ -485,8 +484,8 @@ public class FFMForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public FunctionPointer downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return new FFMFunctionPointer(address, firstVararg, returnType, parameterTypes, options);
+    public FunctionHandle downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return new FFMFunctionHandle(address, firstVararg, returnType, parameterTypes, options);
     }
 
     private static void checkProxyClasses(ClassLoader classLoader, Class<?>... classes) {
@@ -525,7 +524,7 @@ public class FFMForeignProvider extends ForeignProvider {
 
     private static final AtomicInteger nextSerialNumber = new AtomicInteger();
     @Override
-    public Object downcallProxy(ClassLoader classLoader, Class<?>... classes) {
+    public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
         if (classes.length == 0) return null;
         else if (classes.length > 65535)
             throw new IllegalArgumentException("interface limit exceeded: " + classes.length);
@@ -549,94 +548,143 @@ public class FFMForeignProvider extends ForeignProvider {
         objectInit.visitVarInsn(Opcodes.ALOAD, 0);
         objectInit.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
         objectInit.visitInsn(Opcodes.RETURN);
-        objectInit.visitMaxs(1, 1);
+        objectInit.visitMaxs(0, 0);
         objectInit.visitEnd();
 
         MethodVisitor classInit = classWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 "<clinit>", "()V", null, null);
         classInit.visitCode();
 
-        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "multiffi/spi/ForeignProvider", "getImplementation",
-                "()Lmultiffi/spi/ForeignProvider;", false);
-        classInit.visitVarInsn(Opcodes.ASTORE, 1);
         for (Class<?> clazz : classes) {
             for (Method method : clazz.getMethods()) {
                 if (method.isDefault() || method.getDeclaringClass() == Object.class) continue;
                 String methodName = method.getName();
-                String methodPrivateName = "handle" + Integer.toHexString(method.hashCode());
-                CallOptions callOptions = method.getDeclaredAnnotation(CallOptions.class);
-                FirstVararg firstVararg = method.getDeclaredAnnotation(FirstVararg.class);
-                RedirectTo redirectTo = method.getDeclaredAnnotation(RedirectTo.class);
+                String methodFieldName = "function" + Integer.toHexString(method.hashCode());
                 boolean saveErrno = false;
                 boolean critical = false;
                 boolean trivial = false;
-                if (callOptions != null) {
-                    for (String callOption : callOptions.value()) {
-                        if (callOption.equalsIgnoreCase("critical")) critical = true;
-                        else if (callOption.equalsIgnoreCase("trivial")) trivial = critical = true;
-                        else if (callOption.equalsIgnoreCase("save_errno")) saveErrno = true;
-                        else if (!callOption.equalsIgnoreCase("stdcall"))
-                            throw new IllegalArgumentException("Illegal call option: '" + callOption + "'");
+                for (CallOption option : callOptionVisitor.visitCallOptions(method)) {
+                    switch (option) {
+                        case StandardCallOption.SAVE_ERRNO:
+                            saveErrno = true;
+                            break;
+                        case StandardCallOption.TRIVIAL:
+                            trivial = true;
+                        case StandardCallOption.CRITICAL:
+                            critical = true;
+                            break;
+                        case StandardCallOption.STDCALL:
+                            break;
+                        default:
+                            throw new IllegalArgumentException(option + " not supported");
                     }
                 }
-                if (saveErrno) critical = trivial = false;
-                int firstVarargIndex = firstVararg == null ? -1 : firstVararg.value();
-                String symbolName = redirectTo == null ? methodName : redirectTo.value();
+                if (saveErrno && critical) critical = trivial = false;
+                int firstVarargIndex = callOptionVisitor.visitFirstVariadicArgument(method);
+                long address = callOptionVisitor.visitAddress(method);
 
                 classWriter.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
-                        methodPrivateName, "Ljava/lang/invoke/MethodHandle;", null, null).visitEnd();
+                        methodFieldName, "Ljava/lang/invoke/MethodHandle;", null, null).visitEnd();
 
-                int maxLocals = method.getParameterCount() + 1;
+                int methodMaxLocals = method.getParameterCount() + 1;
                 for (Class<?> parameterType : method.getParameterTypes()) {
-                    if (parameterType == long.class || parameterType == double.class) maxLocals ++;
+                    if (parameterType == long.class || parameterType == double.class) methodMaxLocals ++;
                 }
                 MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC, methodName, Type.getMethodDescriptor(method),
                         null, null);
                 methodVisitor.visitCode();
-                if (saveErrno) {
-                    methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/multiffi/FFMLastErrno", "handle",
-                            "()Ljava/lang/foreign/MemorySegment;", false);
-                    methodVisitor.visitVarInsn(Opcodes.ASTORE, maxLocals);
-                }
-                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, proxyInternalName, methodPrivateName, "Ljava/lang/invoke/MethodHandle;");
-                if (saveErrno) methodVisitor.visitVarInsn(Opcodes.ALOAD, maxLocals);
 
-                classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                classInit.visitLdcInsn(symbolName);
-                classInit.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "multiffi/spi/ForeignProvider", "getSymbol",
-                        "(Ljava/lang/String;)J", false);
+                if (saveErrno) {
+                    methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/multiffi/FFMLastErrno", "segment",
+                            "()Ljava/lang/foreign/MemorySegment;", false);
+                    methodVisitor.visitVarInsn(Opcodes.ASTORE, methodMaxLocals);
+                }
+                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, proxyInternalName, methodFieldName, "Ljava/lang/invoke/MethodHandle;");
+                if (saveErrno) methodVisitor.visitVarInsn(Opcodes.ALOAD, methodMaxLocals);
+
+                classInit.visitLdcInsn(address);
                 classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemorySegment", "ofAddress",
                         "(J)Ljava/lang/foreign/MemorySegment;", true);
-                classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                classInit.visitVarInsn(Opcodes.ASTORE, 1);
+
+                ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method);
+                ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
+                boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                 Parameter[] parameters = method.getParameters();
+                if (parameters.length != parameterForeignTypes.length + (addReturnMemoryParameter ? 1 : 0))
+                    throw new IndexOutOfBoundsException("Array length mismatch");
                 Class<?> returnType = method.getReturnType();
                 classInit.visitIntInsn(Opcodes.SIPUSH, parameters.length);
                 classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-                classInit.visitVarInsn(Opcodes.ASTORE, 3);
+                classInit.visitVarInsn(Opcodes.ASTORE, 2);
                 int index = 0;
-                for (int i = 0; i < parameters.length; i ++) {
-                    classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                for (int i = (addReturnMemoryParameter ? 1 : 0); i < parameters.length; i ++) {
+                    ForeignType parameterForeignType = parameterForeignTypes[i];
+                    Class<?> parameterType = parameters[i].getType();
+                    if (parameterForeignType.isCompound()) {
+                        if (!MemoryHandle.class.isAssignableFrom(parameterType))
+                            throw new IllegalArgumentException("Illegal mapping type; expected subclass of class MemoryHandle");
+                        classInit.visitLdcInsn(parameterForeignType.size());
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BYTE",
+                                "Ljava/lang/foreign/ValueLayout$OfByte;");
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
+                                "sequenceLayout", "(JLjava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/SequenceLayout;", true);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 3);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/foreign/MemoryLayout");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                        classInit.visitInsn(Opcodes.ICONST_0);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
+                                "structLayout", "(JLjava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/SequenceLayout;", true);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 3);
+                    }
+                    classInit.visitVarInsn(Opcodes.ALOAD, 2);
                     classInit.visitIntInsn(Opcodes.SIPUSH, i);
-                    dumpMemoryLayout(classInit, parameters[i].getType(), parameters[i].getDeclaredAnnotation(MarshalAs.class));
+                    if (parameterForeignType.isCompound()) classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                    else dumpMemoryLayout(classInit, parameterType, parameterForeignType);
                     classInit.visitInsn(Opcodes.AASTORE);
-                    dumpParameter(methodVisitor, parameters[i].getType(), 1 + index);
-                    if (parameters[i].getType() == long.class || parameters[i].getType() == double.class) index ++;
+                    dumpLoadOpcode(methodVisitor, parameterType, 1 + index);
+                    if (parameterType == long.class || parameterType == double.class) index ++;
                     index ++;
                 }
-                if (returnType == void.class) {
-                    classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                if (returnForeignType == null) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 2);
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/FunctionDescriptor", "ofVoid",
                             "([Ljava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/FunctionDescriptor;",
                             true);
                 }
                 else {
-                    dumpMemoryLayout(classInit, returnType, method.getDeclaredAnnotation(MarshalAs.class));
-                    classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                    if (returnForeignType.isCompound()) {
+                        if (!MemoryHandle.class.isAssignableFrom(returnType))
+                            throw new IllegalArgumentException("Illegal mapping type; expected subclass of class MemoryHandle");
+                        classInit.visitLdcInsn(returnForeignType.size());
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BYTE",
+                                "Ljava/lang/foreign/ValueLayout$OfByte;");
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
+                                "sequenceLayout", "(JLjava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/SequenceLayout;", true);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/foreign/MemoryLayout");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 5);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 5);
+                        classInit.visitInsn(Opcodes.ICONST_0);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 5);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
+                                "structLayout", "(JLjava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/SequenceLayout;", true);
+                    }
+                    else dumpMemoryLayout(classInit, returnType, returnForeignType);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 2);
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/FunctionDescriptor", "of",
                             "(Ljava/lang/foreign/MemoryLayout;[Ljava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/FunctionDescriptor;",
                             true);
                 }
-                classInit.visitVarInsn(Opcodes.ASTORE, 3);
+                classInit.visitVarInsn(Opcodes.ASTORE, 2);
                 classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker", "nativeLinker",
                         "()Ljava/lang/foreign/Linker;", true);
                 int linkerOptionsLength = 0;
@@ -645,123 +693,229 @@ public class FFMForeignProvider extends ForeignProvider {
                 if (firstVarargIndex != -1) linkerOptionsLength ++;
                 classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsLength);
                 classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/foreign/Linker$Option");
-                classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                classInit.visitVarInsn(Opcodes.ASTORE, 3);
                 int linkerOptionsIndex = 0;
                 if (saveErrno) {
-                    classInit.visitIntInsn(Opcodes.BIPUSH, 1);
+                    classInit.visitInsn(Opcodes.ICONST_1);
                     classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/String");
-                    classInit.visitVarInsn(Opcodes.ASTORE, 5);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 5);
-                    classInit.visitIntInsn(Opcodes.BIPUSH, 0);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                    classInit.visitInsn(Opcodes.ICONST_0);
                     classInit.visitLdcInsn(FFMLastErrno.name());
                     classInit.visitInsn(Opcodes.AASTORE);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 5);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                             "captureCallState", "([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;", true);
-                    classInit.visitVarInsn(Opcodes.ASTORE, 5);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 3);
                     classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsIndex ++);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 5);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
                     classInit.visitInsn(Opcodes.AASTORE);
                 }
                 if (critical) {
                     classInit.visitLdcInsn(!trivial);
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                             "critical", "(Z)Ljava/lang/foreign/Linker$Option;", true);
-                    classInit.visitVarInsn(Opcodes.ASTORE, 5);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 3);
                     classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsIndex ++);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 5);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
                     classInit.visitInsn(Opcodes.AASTORE);
                 }
                 if (firstVarargIndex != -1) {
                     classInit.visitLdcInsn(firstVarargIndex);
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                             "firstVariadicArg", "(I)Ljava/lang/foreign/Linker$Option;", true);
-                    classInit.visitVarInsn(Opcodes.ASTORE, 5);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 4);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 3);
                     classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsIndex);
-                    classInit.visitVarInsn(Opcodes.ALOAD, 5);
+                    classInit.visitVarInsn(Opcodes.ALOAD, 4);
                     classInit.visitInsn(Opcodes.AASTORE);
                 }
+                classInit.visitVarInsn(Opcodes.ALOAD, 1);
                 classInit.visitVarInsn(Opcodes.ALOAD, 2);
                 classInit.visitVarInsn(Opcodes.ALOAD, 3);
-                classInit.visitVarInsn(Opcodes.ALOAD, 4);
                 classInit.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/lang/foreign/Linker", "downcallHandle",
                         "(Ljava/lang/foreign/MemorySegment;Ljava/lang/foreign/FunctionDescriptor;[Ljava/lang/foreign/Linker$Option;)Ljava/lang/invoke/MethodHandle;",
                         true);
-                classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                classInit.visitVarInsn(Opcodes.ASTORE, 1);
                 for (int i = 0; i < parameters.length; i ++) {
-                    if (parameters[i].getType() != long.class) continue;
-                    MarshalAs marshalAs = parameters[i].getDeclaredAnnotation(MarshalAs.class);
-                    String marshalTypeString = marshalAs == null ? null : marshalAs.value();
-                    if ("short".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.SHORT.byteSize() == 2) {
+                    ForeignType parameterForeignType = parameterForeignTypes[i];
+                    if (parameterForeignType == ScalarType.SHORT && Foreign.shortSize() == 2) {
                         classInit.visitInsn(Opcodes.ICONST_1);
                         classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
-                        classInit.visitVarInsn(Opcodes.ASTORE, 3);
-                        classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
                         classInit.visitInsn(Opcodes.ICONST_1);
-                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "LONG_TO_SHORT",
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "SHORT_TO_INT16",
                                 "Ljava/lang/invoke/MethodHandle;");
                         classInit.visitInsn(Opcodes.AASTORE);
-                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
                         classInit.visitLdcInsn(i);
-                        classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                 "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
-                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
                     }
-                    else if (("int".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.INT.byteSize() == 4)
-                            || ("long".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.LONG.byteSize() == 4)
-                            || ("size_t".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.SIZE_T.byteSize() == 4)) {
+                    else if (parameterForeignType == ScalarType.INT && Foreign.intSize() == 4) {
                         classInit.visitInsn(Opcodes.ICONST_1);
                         classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
-                        classInit.visitVarInsn(Opcodes.ASTORE, 3);
-                        classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
                         classInit.visitInsn(Opcodes.ICONST_1);
-                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "LONG_TO_INT",
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT_TO_INT32",
                                 "Ljava/lang/invoke/MethodHandle;");
                         classInit.visitInsn(Opcodes.AASTORE);
-                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
                         classInit.visitLdcInsn(i);
-                        classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                 "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
-                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
                     }
-                    else if (marshalAs != null && !"short".equalsIgnoreCase(marshalTypeString) && !"int".equalsIgnoreCase(marshalTypeString)
-                            && !"long".equalsIgnoreCase(marshalTypeString) && !"size_t".equalsIgnoreCase(marshalTypeString))
-                        throw new IllegalArgumentException("Illegal marshal type: '" + marshalTypeString + "'");
+                    else if (parameterForeignType == ScalarType.LONG && Foreign.longSize() == 4) {
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "LONG_TO_INT32",
+                                "Ljava/lang/invoke/MethodHandle;");
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                        classInit.visitLdcInsn(i);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
+                                "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
+                    else if (parameterForeignType == ScalarType.SIZE && Foreign.addressSize() == 4) {
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "ADDRESS_TO_INT32",
+                                "Ljava/lang/invoke/MethodHandle;");
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                        classInit.visitLdcInsn(i);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
+                                "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
+                    else if (parameterForeignType == ScalarType.ADDRESS) {
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT64_TO_SEGMENT",
+                                "Ljava/lang/invoke/MethodHandle;");
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                        classInit.visitLdcInsn(i);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
+                                "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
+                    else if (parameterForeignType == ScalarType.WCHAR && Foreign.wcharSize() == 2) {
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "WCHAR_TO_UTF16",
+                                "Ljava/lang/invoke/MethodHandle;");
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                        classInit.visitLdcInsn(i);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
+                                "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
+                    else if (parameterForeignType.isCompound()) {
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
+                        classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitInsn(Opcodes.ICONST_1);
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "HANDLE_TO_SEGMENT",
+                                "Ljava/lang/invoke/MethodHandle;");
+                        classInit.visitInsn(Opcodes.AASTORE);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                        classInit.visitLdcInsn(i);
+                        classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
+                                "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
                 }
-                MarshalAs marshalAs = method.getDeclaredAnnotation(MarshalAs.class);
-                String marshalTypeString = marshalAs == null ? null : marshalAs.value();
-                if ("short".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.SHORT.byteSize() == 2) {
-                    classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "SHORT_TO_LONG",
+                if (returnForeignType == ScalarType.SHORT && Foreign.shortSize() == 2) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT16_TO_INT64",
                             "Ljava/lang/invoke/MethodHandle;");
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
                             "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
-                    classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
                 }
-                else if (("int".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.INT.byteSize() == 4)
-                        || ("long".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.LONG.byteSize() == 4)
-                        || ("size_t".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.SIZE_T.byteSize() == 4)) {
-                    classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT_TO_LONG",
+                else if (returnForeignType == ScalarType.INT && Foreign.intSize() == 4) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT32_TO_INT64",
                             "Ljava/lang/invoke/MethodHandle;");
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
                             "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
-                    classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
                 }
-                else if (marshalAs != null && !"short".equalsIgnoreCase(marshalTypeString) && !"int".equalsIgnoreCase(marshalTypeString)
-                        && !"long".equalsIgnoreCase(marshalTypeString) && !"size_t".equalsIgnoreCase(marshalTypeString))
-                    throw new IllegalArgumentException("Illegal marshal type: '" + marshalTypeString + "'");
-                classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                classInit.visitFieldInsn(Opcodes.PUTSTATIC, proxyInternalName, methodPrivateName,
+                else if (returnForeignType == ScalarType.LONG && Foreign.longSize() == 4) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT32_TO_INT64",
+                            "Ljava/lang/invoke/MethodHandle;");
+                    classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
+                            "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                }
+                else if (returnForeignType == ScalarType.SIZE && Foreign.addressSize() == 4) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "INT32_TO_INT64",
+                            "Ljava/lang/invoke/MethodHandle;");
+                    classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
+                            "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                }
+                else if (returnForeignType == ScalarType.ADDRESS) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "SEGMENT_TO_INT64",
+                            "Ljava/lang/invoke/MethodHandle;");
+                    classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
+                            "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                }
+                else if (returnForeignType == ScalarType.WCHAR && Foreign.shortSize() == 2) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "UTF16_TO_INT32",
+                            "Ljava/lang/invoke/MethodHandle;");
+                    classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
+                            "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                }
+                else if (returnForeignType != null && returnForeignType.isCompound()) {
+                    classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                    classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/FFMMethodFilters", "SEGMENT_TO_HANDLE",
+                            "Ljava/lang/invoke/MethodHandle;");
+                    classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
+                            "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                    classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                }
+                classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                classInit.visitFieldInsn(Opcodes.PUTSTATIC, proxyInternalName, methodFieldName,
                         "Ljava/lang/invoke/MethodHandle;");
                 methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/invoke/MethodHandle", "invokeExact",
                         getMethodDescriptor(method, saveErrno), false);
-                dumpReturn(methodVisitor, returnType);
+                dumpReturnOpcode(methodVisitor, returnType);
                 methodVisitor.visitMaxs(0, 0);
                 methodVisitor.visitEnd();
             }
@@ -780,48 +934,95 @@ public class FFMForeignProvider extends ForeignProvider {
         }
     }
 
-    private static void dumpMemoryLayout(MethodVisitor methodVisitor, Class<?> clazz, MarshalAs marshalAs) {
-        if (clazz == boolean.class)
-            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BOOLEAN",
-                    "Ljava/lang/foreign/ValueLayout$OfBoolean;");
-        else if (clazz == char.class)
-            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_CHAR",
-                    "Ljava/lang/foreign/ValueLayout$OfChar;");
-        else if (clazz == byte.class)
+    private static void dumpMemoryLayout(MethodVisitor methodVisitor, Class<?> clazz, ForeignType type) {
+        if (type == ScalarType.INT8 || type == ScalarType.CHAR) {
+            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected class byte");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BYTE",
                     "Ljava/lang/foreign/ValueLayout$OfByte;");
-        else if (clazz == short.class)
+        }
+        else if (type == ScalarType.INT16) {
+            if (clazz != short.class) throw new IllegalArgumentException("Illegal mapping type; expected class short");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_SHORT",
                     "Ljava/lang/foreign/ValueLayout$OfShort;");
-        else if (clazz == int.class)
+        }
+        else if (type == ScalarType.INT32) {
+            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected class int");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
                     "Ljava/lang/foreign/ValueLayout$OfInt;");
-        else if (clazz == long.class) {
-            String marshalTypeString = marshalAs == null ? null : marshalAs.value();
-            if ("short".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.SHORT.byteSize() == 2)
+        }
+        else if (type == ScalarType.INT64) {
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
+                        "Ljava/lang/foreign/ValueLayout$OfLong;");
+        }
+        else if (type == ScalarType.WCHAR) {
+            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected class int");
+            if (Foreign.wcharSize() == 2)
+                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_CHAR",
+                        "Ljava/lang/foreign/ValueLayout$OfChar;");
+            else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
+                        "Ljava/lang/foreign/ValueLayout$OfInt;");
+        }
+        else if (type == ScalarType.SHORT) {
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (Foreign.shortSize() == 2)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_SHORT",
                         "Ljava/lang/foreign/ValueLayout$OfShort;");
-            else if (("int".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.INT.byteSize() == 4)
-                    || ("long".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.LONG.byteSize() == 4)
-                    || ("size_t".equalsIgnoreCase(marshalTypeString) && FFMUtil.ABIHolder.SIZE_T.byteSize() == 4))
-                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
-                        "Ljava/lang/foreign/ValueLayout$OfInt;");
-            else if (marshalAs != null && !"short".equalsIgnoreCase(marshalTypeString) && !"int".equalsIgnoreCase(marshalTypeString)
-                    && !"long".equalsIgnoreCase(marshalTypeString) && !"size_t".equalsIgnoreCase(marshalTypeString))
-                throw new IllegalArgumentException("Illegal marshal type: '" + marshalTypeString + "'");
             else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
                         "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
-        else if (clazz == float.class)
+        else if (type == ScalarType.INT) {
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (Foreign.intSize() == 4)
+                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
+                        "Ljava/lang/foreign/ValueLayout$OfInt;");
+            else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
+                        "Ljava/lang/foreign/ValueLayout$OfLong;");
+        }
+        else if (type == ScalarType.LONG) {
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (Foreign.longSize() == 4)
+                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
+                        "Ljava/lang/foreign/ValueLayout$OfInt;");
+            else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
+                        "Ljava/lang/foreign/ValueLayout$OfLong;");
+        }
+        else if (type == ScalarType.SIZE) {
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (Foreign.addressSize() == 4)
+                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
+                        "Ljava/lang/foreign/ValueLayout$OfInt;");
+            else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
+                        "Ljava/lang/foreign/ValueLayout$OfLong;");
+        }
+        else if (type == ScalarType.FLOAT) {
+            if (clazz != float.class) throw new IllegalArgumentException("Illegal mapping type; expected class float");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_FLOAT",
                     "Ljava/lang/foreign/ValueLayout$OfFloat;");
-        else if (clazz == double.class)
+        }
+        else if (type == ScalarType.DOUBLE) {
+            if (clazz != double.class) throw new IllegalArgumentException("Illegal mapping type; expected class double");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_DOUBLE",
                     "Ljava/lang/foreign/ValueLayout$OfDouble;");
-        else throw new IllegalArgumentException("Illegal mapping type: " + clazz);
+        }
+        else if (type == ScalarType.BOOLEAN) {
+            if (clazz != boolean.class) throw new IllegalArgumentException("Illegal mapping type; expected class boolean");
+            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BOOLEAN",
+                    "Ljava/lang/foreign/ValueLayout$OfBoolean;");
+        }
+        else if (type == ScalarType.UTF16) {
+            if (clazz != char.class) throw new IllegalArgumentException("Illegal mapping type; expected class char");
+            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_CHAR",
+                    "Ljava/lang/foreign/ValueLayout$OfChar;");
+        }
+        else if (type == ScalarType.ADDRESS) {
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "ADDRESS",
+                    "Ljava/lang/foreign/AddressLayout;");
+        }
     }
 
-    private static void dumpParameter(MethodVisitor methodVisitor, Class<?> clazz, int index) {
+    private static void dumpLoadOpcode(MethodVisitor methodVisitor, Class<?> clazz, int index) {
         int opcode;
         if (clazz == boolean.class) opcode = Opcodes.ILOAD;
         else if (clazz == char.class) opcode = Opcodes.ILOAD;
@@ -831,11 +1032,12 @@ public class FFMForeignProvider extends ForeignProvider {
         else if (clazz == long.class) opcode = Opcodes.LLOAD;
         else if (clazz == float.class) opcode = Opcodes.FLOAD;
         else if (clazz == double.class) opcode = Opcodes.DLOAD;
+        else if (MemoryHandle.class.isAssignableFrom(clazz)) opcode = Opcodes.ALOAD;
         else throw new IllegalStateException("Unexpected exception");
         methodVisitor.visitVarInsn(opcode, index);
     }
 
-    private static void dumpReturn(MethodVisitor methodVisitor, Class<?> clazz) {
+    private static void dumpReturnOpcode(MethodVisitor methodVisitor, Class<?> clazz) {
         int opcode;
         if (clazz == void.class) opcode = Opcodes.RETURN;
         else if (clazz == boolean.class) opcode = Opcodes.IRETURN;
@@ -846,6 +1048,7 @@ public class FFMForeignProvider extends ForeignProvider {
         else if (clazz == long.class) opcode = Opcodes.LRETURN;
         else if (clazz == float.class) opcode = Opcodes.FRETURN;
         else if (clazz == double.class) opcode = Opcodes.DRETURN;
+        else if (MemoryHandle.class.isAssignableFrom(clazz)) opcode = Opcodes.ARETURN;
         else throw new IllegalStateException("Unexpected exception");
         methodVisitor.visitInsn(opcode);
     }
@@ -868,15 +1071,15 @@ public class FFMForeignProvider extends ForeignProvider {
         }
         if (clazz.isPrimitive()) {
             char descriptor;
-            if (clazz == Integer.TYPE) descriptor = 'I';
-            else if (clazz == Void.TYPE) descriptor = 'V';
-            else if (clazz == Boolean.TYPE) descriptor = 'Z';
-            else if (clazz == Byte.TYPE) descriptor = 'B';
-            else if (clazz == Character.TYPE) descriptor = 'C';
-            else if (clazz == Short.TYPE) descriptor = 'S';
-            else if (clazz == Double.TYPE) descriptor = 'D';
-            else if (clazz == Float.TYPE) descriptor = 'F';
-            else if (clazz == Long.TYPE) descriptor = 'J';
+            if (clazz == int.class) descriptor = 'I';
+            else if (clazz == void.class) descriptor = 'V';
+            else if (clazz == boolean.class) descriptor = 'Z';
+            else if (clazz == byte.class) descriptor = 'B';
+            else if (clazz == char.class) descriptor = 'C';
+            else if (clazz == short.class) descriptor = 'S';
+            else if (clazz == double.class) descriptor = 'D';
+            else if (clazz == float.class) descriptor = 'F';
+            else if (clazz == long.class) descriptor = 'J';
             else throw new IllegalStateException("Unexpected exception");
             stringBuilder.append(descriptor);
         }
@@ -903,17 +1106,8 @@ public class FFMForeignProvider extends ForeignProvider {
         } catch (IllegalAccessException e) {
             throw new IllegalStateException("Unexpected exception");
         }
-        MethodType methodType = methodHandle.type();
-        for (int i = 0; i < methodType.parameterCount(); i ++) {
-            if (MemoryHandle.class.isAssignableFrom(methodType.parameterType(i)))
-                methodHandle = MethodHandles.filterArguments(methodHandle, i, FFMMethodFilters.SEGMENT_TO_HANDLE);
-        }
-        if (MemoryHandle.class.isAssignableFrom(methodType.returnType()))
-            methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.HANDLE_TO_SEGMENT);
-        if (Modifier.isStatic(method.getModifiers())) object = method.getDeclaringClass();
-        else methodHandle = methodHandle.bindTo(object);
         Arena arena = Arena.ofShared();
-        MemoryLayout returnLayout = returnType == ForeignType.VOID ? null : FFMUtil.toMemoryLayout(returnType);
+        MemoryLayout returnLayout = returnType == null ? null : FFMUtil.toMemoryLayout(returnType);
         MemoryLayout[] parameterLayouts = new MemoryLayout[parameterTypes.length];
         for (int i = 0; i < parameterTypes.length; i ++) {
             parameterLayouts[i] = FFMUtil.toMemoryLayout(parameterTypes[i]);
@@ -922,9 +1116,31 @@ public class FFMForeignProvider extends ForeignProvider {
             if (option.equals(StandardCallOption.STDCALL)) continue;
             throw new IllegalArgumentException(option + " not supported");
         }
-        Linker.Option[] linkerOptions = firstVararg >= 0 ? new Linker.Option[] { Linker.Option.firstVariadicArg(firstVararg) }
+        Linker.Option[] linkerOptions = firstVararg >= 0 ? new Linker.Option[] { Linker.Option.firstVariadicArg(firstVararg) } 
         : EMPTY_OPTION_ARRAY;
-        long address = FFMUtil.ABIHolder.LINKER.upcallStub(methodHandle, returnType == ForeignType.VOID ?
+        for (int i = 0; i < parameterTypes.length; i ++) {
+            ForeignType parameterType = parameterTypes[i];
+            if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i, true);
+            else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i, true);
+            else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i, true);
+            else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i, true);
+            else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
+                    .filterArguments(methodHandle, i, FFMMethodFilters.SEGMENT_TO_INT64);
+            else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i, true);
+            else if (parameterType.isCompound()) methodHandle = MethodHandles
+                    .filterArguments(methodHandle, i, FFMMethodFilters.SEGMENT_TO_HANDLE);
+        }
+        if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, true);
+        else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, true);
+        else if (returnType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongReturnValue(methodHandle, true);
+        else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, true);
+        else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.INT64_TO_SEGMENT);
+        else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, true);
+        else if (returnType != null && returnType.isCompound())
+            methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.HANDLE_TO_SEGMENT);
+        if (Modifier.isStatic(method.getModifiers())) object = method.getDeclaringClass();
+        else methodHandle = methodHandle.bindTo(object);
+        long address = FFMUtil.ABIHolder.LINKER.upcallStub(methodHandle, returnType == null ?
                 FunctionDescriptor.ofVoid(parameterLayouts) : FunctionDescriptor.of(returnLayout, parameterLayouts), arena,
                 linkerOptions).address();
         CleanerHolder.CLEANER.register(object, arena::close);
