@@ -8,6 +8,8 @@ public abstract class FunctionHandle {
 
     public abstract List<ForeignType> getParameterTypes();
     public abstract ForeignType getReturnType();
+    public abstract int getFirstVarArgIndex();
+    public abstract boolean isDynCall();
     public abstract boolean isStdCall();
     public abstract boolean isCritical();
     public abstract boolean isTrivial();
@@ -27,49 +29,69 @@ public abstract class FunctionHandle {
     public abstract MemoryHandle invokeCompound(Object... args);
     public abstract Object invoke(Object... args);
 
-    private abstract static class InvokeAdapter {
+    private abstract static class InvokeAdapter64 {
 
         public abstract long invoke(FunctionHandle function, Object... args);
 
-        public static final InvokeAdapter SIZE64 = new InvokeAdapter() {
+        public static final InvokeAdapter64 SIZE64 = new InvokeAdapter64() {
             @Override
             public long invoke(FunctionHandle function, Object... args) {
                 return function.invokeInt64(args);
             }
         };
-
-        public static final InvokeAdapter SIZE32 = new InvokeAdapter() {
+        public static final InvokeAdapter64 SIZE32 = new InvokeAdapter64() {
             @Override
             public long invoke(FunctionHandle function, Object... args) {
                 return function.invokeInt32(args) & 0xFFFFFFFFL;
             }
         };
-
-        public static final InvokeAdapter SIZE16 = new InvokeAdapter() {
+        public static final InvokeAdapter64 SIZE16 = new InvokeAdapter64() {
             @Override
             public long invoke(FunctionHandle function, Object... args) {
                 return function.invokeInt16(args) & 0xFFFFL;
             }
         };
 
-        public static final InvokeAdapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
-        public static final InvokeAdapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
-        public static final InvokeAdapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
-        public static final InvokeAdapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+        public static final InvokeAdapter64 SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
+        public static final InvokeAdapter64 INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
+        public static final InvokeAdapter64 LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
+
+    }
+    public abstract static class InvokeAdapter32 {
+
+        public abstract int invoke(FunctionHandle function, Object... args);
+
+        public static final InvokeAdapter32 SIZE32 = new InvokeAdapter32() {
+            @Override
+            public int invoke(FunctionHandle function, Object... args) {
+                return function.invokeInt32(args);
+            }
+        };
+        public static final InvokeAdapter32 SIZE16 = new InvokeAdapter32() {
+            @Override
+            public int invoke(FunctionHandle function, Object... args) {
+                return function.invokeInt16(args) & 0xFFFF;
+            }
+        };
+
+        public static final InvokeAdapter32 WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
 
     }
 
     public byte invokeChar(Object... args) {
         return invokeInt8(args);
     }
+    public int invokeWChar(Object... args) {
+        return InvokeAdapter32.WCHAR.invoke(this, args);
+    }
     public long invokeShort(Object... args) {
-        return InvokeAdapter.SHORT.invoke(this, args);
+        return InvokeAdapter64.SHORT.invoke(this, args);
     }
     public long invokeInt(Object... args) {
-        return InvokeAdapter.INT.invoke(this, args);
+        return InvokeAdapter64.INT.invoke(this, args);
     }
     public long invokeLong(Object... args) {
-        return InvokeAdapter.LONG.invoke(this, args);
+        return InvokeAdapter64.LONG.invoke(this, args);
     }
 
 }

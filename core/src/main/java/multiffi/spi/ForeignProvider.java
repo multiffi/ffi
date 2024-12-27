@@ -149,15 +149,27 @@ public abstract class ForeignProvider {
             }
         });
     }
-    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallInterface(null, clazz, address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallInterface(classLoader, clazz, address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
     public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
                                    long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return downcallInterface(classLoader, clazz, address, -1, returnType, parameterTypes, options);
     }
+    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallInterface(classLoader, clazz, address, -1, returnType, parameterTypes);
+    }
+    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallInterface(null, clazz, address, firstVararg, returnType, parameterTypes, options);
+    }
+    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallInterface(null, clazz, address, firstVararg, returnType, parameterTypes);
+    }
+    public <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallInterface(null, clazz, address, returnType, parameterTypes, options);
+    }
     public <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallInterface(null, clazz, address, -1, returnType, parameterTypes);
+        return downcallInterface(null, clazz, address, returnType, parameterTypes);
     }
     public abstract Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor);
     public Object downcallProxy(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
