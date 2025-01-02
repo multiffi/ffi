@@ -2,6 +2,8 @@ package multiffi;
 
 public abstract class ForeignType {
 
+    public static final ForeignType VOID = null;
+
     public abstract long size();
     public abstract Class<?> carrier();
 

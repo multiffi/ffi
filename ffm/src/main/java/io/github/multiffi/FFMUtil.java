@@ -25,13 +25,18 @@ final class FFMUtil {
     }
 
     public static final String OS_NAME = System.getProperty("os.name");
-    public static final boolean IS_WINDOWS = OS_NAME.startsWith("Windows");
-    public static boolean osNameStartsWithIgnoreCase(String prefix) {
-        if (OS_NAME == null) return false;
-        else return OS_NAME.startsWith(prefix)
-                || OS_NAME.toUpperCase(Locale.ENGLISH).startsWith(prefix.toUpperCase(Locale.ENGLISH))
-                || OS_NAME.toLowerCase(Locale.ENGLISH).startsWith(prefix.toLowerCase(Locale.ENGLISH));
+    private static boolean startsWithIgnoreCase(String string, String prefix) {
+        if (string == null) return false;
+        else return string.startsWith(prefix)
+                || string.toUpperCase(Locale.ENGLISH).startsWith(prefix.toUpperCase(Locale.ENGLISH))
+                || string.toLowerCase(Locale.ENGLISH).startsWith(prefix.toLowerCase(Locale.ENGLISH));
     }
+    public static final boolean IS_WINDOWS = startsWithIgnoreCase(OS_NAME, "windows");
+    public static final boolean IS_WINDOWS_CE = startsWithIgnoreCase(OS_NAME, "windowsce");
+    public static final boolean IS_MAC = startsWithIgnoreCase(OS_NAME, "mac") || startsWithIgnoreCase(OS_NAME, "darwin");
+    public static final boolean IS_AIX = startsWithIgnoreCase(OS_NAME, "aix");
+    public static final boolean IS_IBMI = startsWithIgnoreCase(OS_NAME, "os/400") || startsWithIgnoreCase(OS_NAME, "os400");
+    public static final boolean IS_LINUX = startsWithIgnoreCase(OS_NAME, "linux");
     public static final boolean IS_BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
 
     public static final class UnsafeHolder {

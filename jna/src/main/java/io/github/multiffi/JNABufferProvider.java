@@ -25,7 +25,7 @@ public class JNABufferProvider extends BufferProvider {
 
     @Override
     public ByteBuffer wrapBytes(long address) {
-        return new Pointer(address).getByteBuffer(0, Integer.MAX_VALUE - 8);
+        return new Pointer(address).getByteBuffer(0, Integer.MAX_VALUE);
     }
 
     private static final class BufferMethodHolder {

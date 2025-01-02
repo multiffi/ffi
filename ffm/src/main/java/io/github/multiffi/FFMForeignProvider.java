@@ -191,14 +191,16 @@ public class FFMForeignProvider extends ForeignProvider {
         static {
             // ClassLoader & C runtime default lookup
             SymbolLookup lookup = SymbolLookup.loaderLookup().or(FFMUtil.ABIHolder.LINKER.defaultLookup());
-            boolean isLinux = FFMUtil.osNameStartsWithIgnoreCase("linux");
             String libraryName;
-            if (FFMUtil.IS_WINDOWS) libraryName = FFMUtil.OS_NAME.startsWith("Windows CE") ? "coredll" : "msvcrt";
+            if (FFMUtil.IS_WINDOWS) libraryName = FFMUtil.IS_WINDOWS_CE ? "coredll" : "msvcrt";
+            else if (FFMUtil.IS_AIX || FFMUtil.IS_IBMI) libraryName = FFMUtil.ABIHolder.SIZE_T.byteSize() == 4L ? "libc.a(shr.o)" : "libc.a(shr_64.o)";
             else libraryName = "c";
             // libc lookup
-            if (!isLinux) lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName), Arena.global()));
+            if (!FFMUtil.IS_LINUX)
+                lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName), Arena.global()));
             // libm lookup
-            if (!FFMUtil.IS_WINDOWS && !isLinux) lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply("m"), Arena.global()));
+            if (!FFMUtil.IS_WINDOWS && !FFMUtil.IS_LINUX && !FFMUtil.IS_AIX && !FFMUtil.IS_IBMI)
+                lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply("m"), Arena.global()));
             GLOBAL_LOOKUP_REFERENCE.set(lookup);
         }
     }
@@ -243,21 +245,33 @@ public class FFMForeignProvider extends ForeignProvider {
                 if (libraryName.matches(".*\\.(drv|dll|ocx)$")) return libraryName;
                 else return System.mapLibraryName(libraryName);
             };
-            else if (FFMUtil.osNameStartsWithIgnoreCase("mac") || FFMUtil.osNameStartsWithIgnoreCase("darwin"))
+            else if (FFMUtil.IS_MAC)
                 libraryNameMapperFunction = libraryName -> {
                 if (libraryName.matches("lib.*\\.(dylib|jnilib)$")) return libraryName;
                 else return "lib" + libraryName + ".dylib";
             };
-            else if (FFMUtil.osNameStartsWithIgnoreCase("aix"))
+            else if (FFMUtil.IS_LINUX)
                 libraryNameMapperFunction = libraryName -> {
-                if (libraryName.matches("lib.*\\.so.*$") || libraryName.matches("lib.*\\.(a|a\\(shr.o\\))$")) return libraryName;
+                if (libraryName.matches("lib.*\\.so((?:\\.[0-9]+)*)$")) return libraryName;
+                else return System.mapLibraryName(libraryName);
+            };
+            else if (FFMUtil.IS_AIX)
+                libraryNameMapperFunction = libraryName -> {
+                if (libraryName.matches("lib.*\\.(so|a\\(shr.o\\)|a\\(shr_64.o\\)|a|so.[.0-9]+)$")) return libraryName;
                 else return "lib" + libraryName + ".a";
             };
-            else if (FFMUtil.osNameStartsWithIgnoreCase("os/400") || FFMUtil.osNameStartsWithIgnoreCase("os400"))
-                libraryNameMapperFunction = libraryName -> {
-                if (libraryName.matches("lib.*\\.so.*$")) return libraryName;
-                else return "lib" + libraryName + ".so";
-            };
+            else if (FFMUtil.IS_IBMI) {
+                if (FFMUtil.ABIHolder.SIZE_T.byteSize() == 4L) {
+                    libraryNameMapperFunction = libraryName -> {
+                        if (libraryName.matches("lib.*\\.(so|a\\(shr.o\\)|a\\(shr_64.o\\)|a|so.[.0-9]+)$")) return libraryName;
+                        else return "lib" + libraryName + ".a(shr.o)";
+                    };
+                }
+                else libraryNameMapperFunction = libraryName -> {
+                    if (libraryName.matches("lib.*\\.(so|a\\(shr.o\\)|a\\(shr_64.o\\)|a|so.[.0-9]+)$")) return libraryName;
+                    else return "lib" + libraryName + ".a(shr_64.o)";
+                };
+            }
             else libraryNameMapperFunction = libraryName -> {
                 if (libraryName.matches("lib.*\\.so.*$")) return libraryName;
                 else return System.mapLibraryName(libraryName);

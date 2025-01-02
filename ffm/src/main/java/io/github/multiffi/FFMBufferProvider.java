@@ -18,7 +18,7 @@ public class FFMBufferProvider extends BufferProvider {
 
     @Override
     public ByteBuffer wrapBytes(long address) {
-        return MemorySegment.ofAddress(address).reinterpret(Integer.MAX_VALUE - 8).asByteBuffer();
+        return MemorySegment.ofAddress(address).reinterpret(Integer.MAX_VALUE).asByteBuffer();
     }
 
     private static final class BufferFieldMethodHolder {

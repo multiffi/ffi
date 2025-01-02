@@ -450,7 +450,7 @@ public class JNAForeignProvider extends ForeignProvider {
                         if (arg instanceof Pointer) args[i] = MemoryHandle.wrap(Pointer.nativeValue((Pointer) arg), parameterTypes[i].size());
                     }
                     Object result = JNAUtil.invoke(object, method, args);
-                    if (result == null) throw new NullPointerException();
+                    if (JNACompound.class.isAssignableFrom(nativeReturnType) && result == null) throw new NullPointerException();
                     if (result instanceof MemoryHandle) {
                         MemoryHandle memoryHandle = (MemoryHandle) result;
                         if (memoryHandle.isNil()) throw new NullPointerException();

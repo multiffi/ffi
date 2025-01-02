@@ -54,18 +54,6 @@ final class JNAUtil {
         }
     }
 
-    public static final class LastErrnoHolder {
-        private LastErrnoHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final ThreadLocal<Integer> ERRNO_THREAD_LOCAL = new ThreadLocal<Integer>() {
-            @Override
-            protected Integer initialValue() {
-                return 0;
-            }
-        };
-    }
-
     public static Object invoke(Object object, Method method, Object... args) throws Throwable {
         if (UnsafeHolder.IMPL_LOOKUP == null) {
             method.setAccessible(true);
@@ -91,6 +79,18 @@ final class JNAUtil {
         }
     }
 
+    public static final class LastErrnoHolder {
+        private LastErrnoHolder() {
+            throw new UnsupportedOperationException();
+        }
+        public static final ThreadLocal<Integer> ERRNO_THREAD_LOCAL = new ThreadLocal<Integer>() {
+            @Override
+            protected Integer initialValue() {
+                return 0;
+            }
+        };
+    }
+
     public static String mapLibraryName(String libraryName) {
         if (Platform.isMac()) {
             if (libraryName.startsWith("lib") && (libraryName.endsWith(".dylib") || libraryName.endsWith(".jnilib"))) {
@@ -103,9 +103,9 @@ final class JNAUtil {
             if (name.endsWith(".jnilib")) return name.substring(0, name.lastIndexOf(".jnilib")) + ".dylib";
             else return name;
         }
-        else if (Platform.isAIX()) {    // can be libx.a, libx.a(shr.o), libx.so
+        else if (Platform.isAIX()) {    // can be libx.a, libx.a(shr.o), libx.a(shr_64.o), libx.so
             if (isVersionedName(libraryName)
-                    || (libraryName.startsWith("lib") && (libraryName.endsWith(".so") || libraryName.endsWith(".a") || libraryName.endsWith(".a(shr.o)")))) {
+                    || (libraryName.startsWith("lib") && (libraryName.endsWith(".so") || libraryName.endsWith(".a") || libraryName.endsWith(".a(shr.o)") || libraryName.endsWith(".a(shr_64.o)")))) {
                 // A specific version was requested - use as is for search
                 return libraryName;
             }
