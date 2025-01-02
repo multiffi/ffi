@@ -127,8 +127,8 @@ public final class Foreign {
         IMPLEMENTATION.loadLibrary(libraryFile);
     }
 
-    public static long getSymbol(String symbolName) {
-        return IMPLEMENTATION.getSymbol(symbolName);
+    public static long getSymbolAddress(String symbolName) {
+        return IMPLEMENTATION.getSymbolAddress(symbolName);
     }
 
     public static String mapLibraryName(String libraryName) {

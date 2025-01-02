@@ -5,7 +5,7 @@ import java.lang.reflect.Method;
 public interface CallOptionVisitor {
 
     default long visitAddress(Method method) {
-        return Foreign.getSymbol(method.getName());
+        return Foreign.getSymbolAddress(method.getName());
     }
     default int visitFirstVarArgIndex(Method method) {
         return -1;

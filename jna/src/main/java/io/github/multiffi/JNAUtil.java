@@ -1,7 +1,7 @@
 package io.github.multiffi;
 
 import com.sun.jna.Function;
-import com.sun.jna.Native;
+import com.sun.jna.JNAAccessor;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
@@ -139,62 +139,30 @@ final class JNAUtil {
         return false;
     }
 
-    private static final class InvokeMethodHolder {
-        private InvokeMethodHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final Method invokeIntMethod;
-        public static final Method invokeLongMethod;
-        public static final Method invokeFloatMethod;
-        public static final Method invokeDoubleMethod;
-        public static final Method invokeVoidMethod;
-        public static final Method invokePointerMethod;
-        public static final Method invokeStructureMethod;
-        static {
-            try {
-                invokeIntMethod = Native.class.getDeclaredMethod("invokeInt", Function.class, long.class, int.class, Object[].class);
-                invokeLongMethod = Native.class.getDeclaredMethod("invokeLong", Function.class, long.class, int.class, Object[].class);
-                invokeFloatMethod = Native.class.getDeclaredMethod("invokeFloat", Function.class, long.class, int.class, Object[].class);
-                invokeDoubleMethod = Native.class.getDeclaredMethod("invokeDouble", Function.class, long.class, int.class, Object[].class);
-                invokeVoidMethod = Native.class.getDeclaredMethod("invokeVoid", Function.class, long.class, int.class, Object[].class);
-                invokePointerMethod = Native.class.getDeclaredMethod("invokePointer", Function.class, long.class, int.class, Object[].class);
-                invokeStructureMethod = Native.class.getDeclaredMethod("invokeStructure", Function.class, long.class, int.class, Object[].class, Structure.class);
-            } catch (NoSuchMethodException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
-        }
-    }
-
     public static Object invoke(Object returnType, Function function, long address, int callFlags, Object... args) {
-        try {
-            if (returnType == null || returnType == void.class || returnType == Void.class) {
-                invoke(function, InvokeMethodHolder.invokeVoidMethod, function, address, callFlags, args);
-                return null;
-            }
-            else if (returnType == boolean.class || returnType == Boolean.class)
-                return (int) invoke(function, InvokeMethodHolder.invokeIntMethod, function, address, callFlags, args) != 0;
-            else if (returnType == byte.class || returnType == Byte.class)
-                return ((Number) invoke(function, InvokeMethodHolder.invokeIntMethod, function, address, callFlags, args)).byteValue();
-            else if (returnType == short.class || returnType == Short.class)
-                return ((Number) invoke(function, InvokeMethodHolder.invokeIntMethod, function, address, callFlags, args)).shortValue();
-            else if (returnType == int.class || returnType == Integer.class)
-                return invoke(function, InvokeMethodHolder.invokeIntMethod, function, address, callFlags, args);
-            else if (returnType == long.class || returnType == Long.class)
-                return invoke(function, InvokeMethodHolder.invokeLongMethod, function, address, callFlags, args);
-            else if (returnType == float.class || returnType == Float.class)
-                return invoke(function, InvokeMethodHolder.invokeFloatMethod, function, address, callFlags, args);
-            else if (returnType == double.class || returnType == Double.class)
-                return invoke(function, InvokeMethodHolder.invokeDoubleMethod, function, address, callFlags, args);
-            else if (returnType == char.class || returnType == Character.class)
-                return (char) invoke(function, InvokeMethodHolder.invokeIntMethod, function, address, callFlags, args);
-            else if (returnType == Pointer.class)
-                return (Pointer) invoke(function, InvokeMethodHolder.invokePointerMethod, function, address, callFlags, args);
-            else return invoke(function, InvokeMethodHolder.invokeStructureMethod, function, address, callFlags, args, returnType);
-        } catch (RuntimeException | Error e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new IllegalStateException(e);
+        if (returnType == null || returnType == void.class || returnType == Void.class) {
+            JNAAccessor.invokeVoid(function, address, callFlags, args);
+            return null;
         }
+        else if (returnType == boolean.class || returnType == Boolean.class)
+            return JNAAccessor.invokeInt(function, address, callFlags, args) != 0;
+        else if (returnType == byte.class || returnType == Byte.class)
+            return (byte) JNAAccessor.invokeInt(function, address, callFlags, args);
+        else if (returnType == short.class || returnType == Short.class)
+            return (short) JNAAccessor.invokeInt(function, address, callFlags, args);
+        else if (returnType == int.class || returnType == Integer.class)
+            return JNAAccessor.invokeInt(function, address, callFlags, args);
+        else if (returnType == long.class || returnType == Long.class)
+            return JNAAccessor.invokeLong(function, address, callFlags, args);
+        else if (returnType == float.class || returnType == Float.class)
+            return JNAAccessor.invokeFloat(function, address, callFlags, args);
+        else if (returnType == double.class || returnType == Double.class)
+            return JNAAccessor.invokeDouble(function, address, callFlags, args);
+        else if (returnType == char.class || returnType == Character.class)
+            return (char) JNAAccessor.invokeInt(function, address, callFlags, args);
+        else if (returnType == Pointer.class)
+            return JNAAccessor.invokeDouble(function, address, callFlags, args);
+        else return JNAAccessor.invokeStructure((Structure) returnType, function, address, callFlags, args);
     }
 
 }

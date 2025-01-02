@@ -2,6 +2,7 @@ package io.github.multiffi;
 
 import com.sun.jna.CallbackProxy;
 import com.sun.jna.CallbackReference;
+import com.sun.jna.JNAAccessor;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLibrary;
@@ -183,14 +184,6 @@ public class JNAForeignProvider extends ForeignProvider {
             if (!Platform.isLinux()) NATIVE_LIBRARIES.add(NativeLibrary.getInstance(Platform.C_LIBRARY_NAME));
             if (!Platform.isWindows() && !Platform.isLinux()) NATIVE_LIBRARIES.add(NativeLibrary.getInstance(Platform.MATH_LIBRARY_NAME));
         }
-        public static final Method getSymbolAddressMethod;
-        static {
-            try {
-                getSymbolAddressMethod = NativeLibrary.class.getDeclaredMethod("getSymbolAddress", String.class);
-            } catch (NoSuchMethodException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
-        }
     }
 
     @Override
@@ -232,7 +225,7 @@ public class JNAForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public long getSymbol(String symbolName) {
+    public long getSymbolAddress(String symbolName) {
         Objects.requireNonNull(symbolName);
         if (FindNativeMethodHolder.findNativeMethod != null) {
             try {
@@ -243,12 +236,9 @@ public class JNAForeignProvider extends ForeignProvider {
         synchronized (NativeLibraryHolder.NATIVE_LIBRARIES) {
             for (NativeLibrary library : NativeLibraryHolder.NATIVE_LIBRARIES) {
                 try {
-                    return (long) JNAUtil.invoke(library, NativeLibraryHolder.getSymbolAddressMethod, symbolName);
-                } catch (UnsatisfiedLinkError ignored) {
-                } catch (RuntimeException | Error e) {
-                    throw e;
-                } catch (Throwable e) {
-                    throw new IllegalStateException(e);
+                    return JNAAccessor.getSymbolAddress(library, symbolName);
+                }
+                catch (UnsatisfiedLinkError ignored) {
                 }
             }
         }

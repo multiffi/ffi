@@ -228,7 +228,7 @@ public class FFMForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public long getSymbol(String symbolName) {
+    public long getSymbolAddress(String symbolName) {
         Objects.requireNonNull(symbolName);
         Optional<MemorySegment> symbol = SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.get().find(symbolName);
         if (symbol.isPresent()) return symbol.get().address();

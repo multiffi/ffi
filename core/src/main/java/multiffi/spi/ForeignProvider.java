@@ -80,7 +80,7 @@ public abstract class ForeignProvider {
     public abstract void loadLibrary(String libraryName) throws IOException;
     public abstract void loadLibrary(File libraryFile) throws IOException;
 
-    public abstract long getSymbol(String symbolName);
+    public abstract long getSymbolAddress(String symbolName);
     public abstract String mapLibraryName(String libraryName);
     public abstract int getLastErrno();
     public abstract void setLastErrno(int errno);
