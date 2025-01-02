@@ -177,8 +177,10 @@ public class JNAFunctionHandle extends FunctionHandle {
         }
     }
 
+    private static final Object[] EMPTY_ARGUMENTS = new Object[0];
     @Override
     public Object invoke(Object... args) {
+        if (args == null) args = EMPTY_ARGUMENTS;
         Object result;
         try {
             if (returnType == null) {
