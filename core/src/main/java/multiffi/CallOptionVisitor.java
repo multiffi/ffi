@@ -7,7 +7,7 @@ public interface CallOptionVisitor {
     default long visitAddress(Method method) {
         return Foreign.getSymbol(method.getName());
     }
-    default int visitFirstVariadicArgument(Method method) {
+    default int visitFirstVarArgIndex(Method method) {
         return -1;
     }
     ForeignType visitReturnType(Method method);

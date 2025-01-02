@@ -1,6 +1,6 @@
 package multiffi;
 
-import multiffi.spi.ForeignProvider;
+import multiffi.spi.BufferProvider;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
@@ -17,182 +17,182 @@ public final class Buffers {
         throw new AssertionError("No multiffi.Buffers instances for you!");
     }
 
-    private static final ForeignProvider IMPLEMENTATION = ForeignProvider.getImplementation();
+    private static final BufferProvider IMPLEMENTATION = BufferProvider.getImplementation();
 
-    public ByteBuffer allocateBytes(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity).order(Foreign.endianness()) : ByteBuffer.allocate(capacity));
+    public static ByteBuffer allocateBytes(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytes(capacity, direct);
     }
 
-    public CharBuffer allocateBytesAsChars(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity << 1).order(Foreign.endianness()) : ByteBuffer.allocate(capacity << 1)).asCharBuffer();
+    public static CharBuffer allocateBytesAsChars(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytesAsChars(capacity, direct);
     }
 
-    public ShortBuffer allocateBytesAsShorts(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity << 1).order(Foreign.endianness()) : ByteBuffer.allocate(capacity << 1)).asShortBuffer();
+    public static ShortBuffer allocateBytesAsShorts(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytesAsShorts(capacity, direct);
     }
 
-    public IntBuffer allocateBytesAsInts(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity << 2).order(Foreign.endianness()) : ByteBuffer.allocate(capacity << 2)).asIntBuffer();
+    public static IntBuffer allocateBytesAsInts(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytesAsInts(capacity, direct);
     }
 
-    public LongBuffer allocateBytesAsLongs(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity << 3).order(Foreign.endianness()) : ByteBuffer.allocate(capacity << 3)).asLongBuffer();
+    public static LongBuffer allocateBytesAsLongs(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytesAsLongs(capacity, direct);
     }
 
-    public FloatBuffer allocateBytesAsFloats(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity << 2).order(Foreign.endianness()) : ByteBuffer.allocate(capacity << 2)).asFloatBuffer();
+    public static FloatBuffer allocateBytesAsFloats(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytesAsFloats(capacity, direct);
     }
 
-    public DoubleBuffer allocateBytesAsDoubles(int capacity, boolean direct) {
-        return (direct ? ByteBuffer.allocateDirect(capacity << 3).order(Foreign.endianness()) : ByteBuffer.allocate(capacity << 3)).asDoubleBuffer();
+    public static DoubleBuffer allocateBytesAsDoubles(int capacity, boolean direct) {
+        return IMPLEMENTATION.allocateBytesAsDoubles(capacity, direct);
     }
 
-    public ByteBuffer wrapBytes(byte[] array, int offset, int length) {
-        return ByteBuffer.wrap(array, offset, length);
+    public static ByteBuffer wrapBytes(byte[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapBytes(array, offset, length);
     }
 
-    public ByteBuffer wrapBytes(byte[] array) {
-        return ByteBuffer.wrap(array);
+    public static ByteBuffer wrapBytes(byte[] array) {
+        return IMPLEMENTATION.wrapBytes(array);
     }
 
-    public ByteBuffer wrapBytes(long address, int capacity) {
-        return IMPLEMENTATION.wrapDirectBuffer(address, capacity);
+    public static ByteBuffer wrapBytes(long address, int capacity) {
+        return IMPLEMENTATION.wrapBytes(address, capacity);
     }
 
     public static ByteBuffer wrapBytes(long address) {
-        return IMPLEMENTATION.wrapDirectBuffer(address);
+        return IMPLEMENTATION.wrapBytes(address);
     }
 
-    public CharBuffer allocateChars(int capacity) {
-        return CharBuffer.allocate(capacity);
+    public static CharBuffer allocateChars(int capacity) {
+        return IMPLEMENTATION.allocateChars(capacity);
     }
 
-    public CharBuffer wrapChars(char[] array, int offset, int length) {
-        return CharBuffer.wrap(array, offset, length);
+    public static CharBuffer wrapChars(char[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapChars(array, offset, length);
     }
 
-    public CharBuffer wrapChars(char[] array) {
-        return CharBuffer.wrap(array);
+    public static CharBuffer wrapChars(char[] array) {
+        return IMPLEMENTATION.wrapChars(array);
     }
 
-    public CharBuffer wrapChars(CharSequence csq, int start, int end) {
-        return CharBuffer.wrap(csq, start, end);
+    public static CharBuffer wrapChars(CharSequence csq, int start, int end) {
+        return IMPLEMENTATION.wrapChars(csq, start, end);
     }
 
-    public CharBuffer wrapChars(CharSequence csq) {
-        return CharBuffer.wrap(csq);
+    public static CharBuffer wrapChars(CharSequence csq) {
+        return IMPLEMENTATION.wrapChars(csq);
     }
 
-    public ShortBuffer allocateShorts(int capacity) {
-        return ShortBuffer.allocate(capacity);
+    public static ShortBuffer allocateShorts(int capacity) {
+        return IMPLEMENTATION.allocateShorts(capacity);
     }
 
-    public ShortBuffer wrapShorts(short[] array, int offset, int length) {
-        return ShortBuffer.wrap(array, offset, length);
+    public static ShortBuffer wrapShorts(short[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapShorts(array, offset, length);
     }
 
-    public ShortBuffer wrapShorts(short[] array) {
-        return ShortBuffer.wrap(array);
+    public static ShortBuffer wrapShorts(short[] array) {
+        return IMPLEMENTATION.wrapShorts(array);
     }
 
-    public IntBuffer allocateInts(int capacity) {
-        return IntBuffer.allocate(capacity);
+    public static IntBuffer allocateInts(int capacity) {
+        return IMPLEMENTATION.allocateInts(capacity);
     }
 
-    public IntBuffer wrapInts(int[] array, int offset, int length) {
-        return IntBuffer.wrap(array, offset, length);
+    public static IntBuffer wrapInts(int[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapInts(array, offset, length);
     }
 
-    public IntBuffer wrapInts(int[] array) {
-        return IntBuffer.wrap(array);
+    public static IntBuffer wrapInts(int[] array) {
+        return IMPLEMENTATION.wrapInts(array);
     }
 
-    public LongBuffer allocateLongs(int capacity) {
-        return LongBuffer.allocate(capacity);
+    public static LongBuffer allocateLongs(int capacity) {
+        return IMPLEMENTATION.allocateLongs(capacity);
     }
 
-    public LongBuffer wrapLongs(long[] array, int offset, int length) {
-        return LongBuffer.wrap(array, offset, length);
+    public static LongBuffer wrapLongs(long[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapLongs(array, offset, length);
     }
 
-    public LongBuffer wrapLongs(long[] array) {
-        return LongBuffer.wrap(array);
+    public static LongBuffer wrapLongs(long[] array) {
+        return IMPLEMENTATION.wrapLongs(array);
     }
 
-    public FloatBuffer allocateFloats(int capacity) {
-        return FloatBuffer.allocate(capacity);
+    public static FloatBuffer allocateFloats(int capacity) {
+        return IMPLEMENTATION.allocateFloats(capacity);
     }
 
-    public FloatBuffer wrapFloats(float[] array, int offset, int length) {
-        return FloatBuffer.wrap(array, offset, length);
+    public static FloatBuffer wrapFloats(float[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapFloats(array, offset, length);
     }
 
-    public FloatBuffer wrapFloats(float[] array) {
-        return FloatBuffer.wrap(array);
+    public static FloatBuffer wrapFloats(float[] array) {
+        return IMPLEMENTATION.wrapFloats(array);
     }
 
-    public DoubleBuffer allocateDoubles(int capacity) {
-        return DoubleBuffer.allocate(capacity);
+    public static DoubleBuffer allocateDoubles(int capacity) {
+        return IMPLEMENTATION.allocateDoubles(capacity);
     }
 
-    public DoubleBuffer wrapDoubles(double[] array, int offset, int length) {
-        return DoubleBuffer.wrap(array, offset, length);
+    public static DoubleBuffer wrapDoubles(double[] array, int offset, int length) {
+        return IMPLEMENTATION.wrapDoubles(array, offset, length);
     }
 
-    public DoubleBuffer wrapDoubles(double[] array) {
-        return DoubleBuffer.wrap(array);
+    public static DoubleBuffer wrapDoubles(double[] array) {
+        return IMPLEMENTATION.wrapDoubles(array);
     }
 
     public static int capacity(Buffer buffer) {
-        return buffer.capacity();
+        return IMPLEMENTATION.capacity(buffer);
     }
 
     public static int position(Buffer buffer) {
-        return buffer.position();
+        return IMPLEMENTATION.position(buffer);
     }
 
     public static int limit(Buffer buffer) {
-        return buffer.limit();
+        return IMPLEMENTATION.limit(buffer);
     }
 
     public static int remaining(Buffer buffer) {
-        return buffer.remaining();
+        return IMPLEMENTATION.remaining(buffer);
     }
 
     public static boolean hasRemaining(Buffer buffer) {
-        return buffer.hasRemaining();
+        return IMPLEMENTATION.hasRemaining(buffer);
     }
 
     public static boolean isReadOnly(Buffer buffer) {
-        return buffer.isReadOnly();
+        return IMPLEMENTATION.isReadOnly(buffer);
     }
 
     public static boolean hasArray(Buffer buffer) {
-        return buffer.hasArray();
+        return IMPLEMENTATION.hasArray(buffer);
     }
 
     public static boolean isDirect(Buffer buffer) {
-        return buffer.isDirect();
+        return IMPLEMENTATION.isDirect(buffer);
     }
 
     public static boolean hasMemory(Buffer buffer) {
-        return attachment(buffer) == null;
+        return IMPLEMENTATION.hasMemory(buffer);
     }
 
     public static boolean hasAttachment(Buffer buffer) {
-        return attachment(buffer) != null;
+        return IMPLEMENTATION.hasAttachment(buffer);
     }
 
     public static Object array(Buffer buffer) {
-        return IMPLEMENTATION.getHeapBufferArray(buffer);
+        return IMPLEMENTATION.array(buffer);
     }
 
     public static int arrayOffset(Buffer buffer) {
-        return IMPLEMENTATION.getHeapBufferArrayOffset(buffer);
+        return IMPLEMENTATION.arrayOffset(buffer);
     }
 
     public static long address(Buffer buffer) {
-        return IMPLEMENTATION.getDirectBufferAddress(buffer);
+        return IMPLEMENTATION.address(buffer);
     }
 
     public static boolean isByteBuffer(Buffer buffer) {
@@ -204,58 +204,51 @@ public final class Buffers {
     }
 
     public static void clean(Buffer buffer) {
-        IMPLEMENTATION.cleanBuffer(buffer);
+        IMPLEMENTATION.clean(buffer);
     }
 
     public static <T extends Buffer> T attachment(T buffer) {
-        return IMPLEMENTATION.getBufferAttachment(buffer);
+        return IMPLEMENTATION.attachment(buffer);
     }
     
     public static <T extends Buffer> T rewind(T buffer) {
-        ((Buffer) buffer).rewind();
-        return buffer;
+        return IMPLEMENTATION.rewind(buffer);
     }
 
     public static <T extends Buffer> T flip(T buffer) {
-        ((Buffer) buffer).flip();
-        return buffer;
+        return IMPLEMENTATION.flip(buffer);
     }
 
     public static <T extends Buffer> T mark(T buffer) {
-        ((Buffer) buffer).mark();
-        return buffer;
+        return IMPLEMENTATION.mark(buffer);
     }
 
     public static <T extends Buffer> T position(T buffer, int newPosition) {
-        ((Buffer) buffer).position(newPosition);
-        return buffer;
+        return IMPLEMENTATION.position(buffer, newPosition);
     }
 
     public static <T extends Buffer> T limit(T buffer, int newLimit) {
-        ((Buffer) buffer).limit(newLimit);
-        return buffer;
+        return IMPLEMENTATION.limit(buffer, newLimit);
     }
 
     public static <T extends Buffer> T clear(T buffer) {
-        ((Buffer) buffer).clear();
-        return buffer;
+        return IMPLEMENTATION.clear(buffer);
     }
 
     public static <T extends Buffer> T reset(T buffer) {
-        ((Buffer) buffer).reset();
-        return buffer;
+        return IMPLEMENTATION.reset(buffer);
     }
 
     public static <T extends Buffer> T slice(T buffer, int index, int length) {
-        return IMPLEMENTATION.sliceBuffer(buffer, index, length);
+        return IMPLEMENTATION.slice(buffer, index, length);
     }
 
     public static <T extends Buffer> T slice(T buffer, int index) {
-        return IMPLEMENTATION.sliceBuffer(buffer, index);
+        return IMPLEMENTATION.slice(buffer, index);
     }
 
     public static <T extends Buffer> T duplicate(T buffer) {
-        return IMPLEMENTATION.duplicateBuffer(buffer);
+        return IMPLEMENTATION.duplicate(buffer);
     }
     
 }

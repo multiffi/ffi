@@ -8,8 +8,6 @@ import multiffi.FunctionHandle;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.util.Map;
@@ -59,20 +57,6 @@ public abstract class ForeignProvider {
     public abstract Charset wideCharset();
     public abstract Charset utf16Charset();
     public abstract Charset utf32Charset();
-    public abstract Charset consoleCharset();
-
-    public abstract ByteBuffer wrapDirectBuffer(long address, int capacity);
-    public abstract ByteBuffer wrapDirectBuffer(long address);
-    public abstract Object getHeapBufferArray(Buffer buffer);
-    public abstract int getHeapBufferArrayOffset(Buffer buffer);
-    public abstract long getDirectBufferAddress(Buffer buffer);
-    public abstract boolean isByteBuffer(Buffer buffer);
-    public abstract ByteBuffer getByteBuffer(Buffer buffer);
-    public abstract void cleanBuffer(Buffer buffer);
-    public abstract <T extends Buffer> T getBufferAttachment(T buffer);
-    public abstract <T extends Buffer> T sliceBuffer(T buffer, int index, int length);
-    public abstract <T extends Buffer> T sliceBuffer(T buffer, int index);
-    public abstract <T extends Buffer> T duplicateBuffer(T buffer);
 
     public abstract void sneakyThrows(Throwable throwable);
 
@@ -132,7 +116,7 @@ public abstract class ForeignProvider {
                 return address;
             }
             @Override
-            public int visitFirstVariadicArgument(Method method) {
+            public int visitFirstVarArgIndex(Method method) {
                 return firstVararg;
             }
             @Override

@@ -1,4 +1,4 @@
-rootProject.name = 'multiffi'
+rootProject.name = 'ffi'
 
 include ':core'
 include ':ffm'

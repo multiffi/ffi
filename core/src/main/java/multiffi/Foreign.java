@@ -63,10 +63,6 @@ public final class Foreign {
         return IMPLEMENTATION.utf32Charset();
     }
 
-    public static Charset consoleCharset() {
-        return IMPLEMENTATION.consoleCharset();
-    }
-
     public static void sneakyThrows(Throwable throwable) {
         IMPLEMENTATION.sneakyThrows(throwable);
     }

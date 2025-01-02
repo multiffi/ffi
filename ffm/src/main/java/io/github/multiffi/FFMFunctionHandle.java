@@ -34,7 +34,7 @@ import java.util.function.Function;
 public class FFMFunctionHandle extends FunctionHandle {
 
     private final long address;
-    private final int firstVariadicArgumentIndex;
+    private final int firstVarArgIndex;
     private final List<ForeignType> parameterTypes;
     private final ForeignType returnType;
     private final Function<Object[], Object> invokeFunction;
@@ -88,8 +88,8 @@ public class FFMFunctionHandle extends FunctionHandle {
         if (addReturnMemoryParameter) parameterTypeList.addFirst(returnType);
         this.returnType = returnType;
         this.parameterTypes = Collections.unmodifiableList(parameterTypeList);
-        this.firstVariadicArgumentIndex = firstVararg >= 0 ? firstVararg : (dyncall ? parameterTypeList.size() : -1);
-        if (firstVariadicArgumentIndex >= 0) linkerOptions.add(Linker.Option.firstVariadicArg(firstVariadicArgumentIndex));
+        this.firstVarArgIndex = firstVararg >= 0 ? firstVararg : (dyncall ? parameterTypes.length : -1);
+        if (firstVarArgIndex >= 0) linkerOptions.add(Linker.Option.firstVariadicArg(firstVarArgIndex));
         if (dyncall) {
             invokeFunction = args -> {
                 if (args.length != parameterTypeList.size() + 1) throw new IllegalArgumentException("Array length mismatch");
@@ -123,8 +123,13 @@ public class FFMFunctionHandle extends FunctionHandle {
                     else if (vararg instanceof Double) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_DOUBLE;
                     else if (vararg instanceof MemoryHandle memoryHandle) {
                         long size = memoryHandle.size();
-                        if (size < 0) throw new IndexOutOfBoundsException("Index out of range: " + Long.toUnsignedString(size));
-                        newParameterLayouts[parameterLayouts.length + i] =
+                        if (size < 0) {
+                            long remaining = size - Long.MAX_VALUE;
+                            newParameterLayouts[parameterLayouts.length + i] =
+                                MemoryLayout.structLayout(MemoryLayout.sequenceLayout(Long.MAX_VALUE, ValueLayout.JAVA_BYTE),
+                                        MemoryLayout.sequenceLayout(remaining, ValueLayout.JAVA_BYTE));
+                        }
+                        else newParameterLayouts[parameterLayouts.length + i] =
                                 MemoryLayout.structLayout(MemoryLayout.sequenceLayout(size, ValueLayout.JAVA_BYTE));
                     }
                     else throw new IllegalArgumentException("Illegal argument: " + vararg);
@@ -347,7 +352,7 @@ public class FFMFunctionHandle extends FunctionHandle {
 
     @Override
     public int getFirstVarArgIndex() {
-        return firstVariadicArgumentIndex;
+        return firstVarArgIndex;
     }
 
     @Override
@@ -387,7 +392,7 @@ public class FFMFunctionHandle extends FunctionHandle {
 
     @Override
     public byte invokeInt8(Object... args) {
-        return (byte) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).byteValue();
     }
 
     @Override
@@ -397,52 +402,52 @@ public class FFMFunctionHandle extends FunctionHandle {
 
     @Override
     public short invokeInt16(Object... args) {
-        return (short) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).shortValue();
     }
 
     @Override
     public int invokeInt32(Object... args) {
-        return (int) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).intValue();
     }
 
     @Override
     public long invokeInt64(Object... args) {
-        return (long) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).longValue();
     }
 
     @Override
     public float invokeFloat(Object... args) {
-        return (float) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).floatValue();
     }
 
     @Override
     public double invokeDouble(Object... args) {
-        return (double) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).doubleValue();
     }
 
     @Override
     public int invokeWChar(Object... args) {
-        return (int) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).intValue();
     }
 
     @Override
     public long invokeShort(Object... args) {
-        return (long) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).longValue();
     }
 
     @Override
     public long invokeInt(Object... args) {
-        return (long) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).longValue();
     }
 
     @Override
     public long invokeLong(Object... args) {
-        return (long) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).longValue();
     }
 
     @Override
     public long invokeAddress(Object... args) {
-        return (long) invokeFunction.apply(args);
+        return ((Number) invokeFunction.apply(args)).longValue();
     }
 
     @Override

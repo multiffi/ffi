@@ -18,36 +18,36 @@ public class FFMAllocatorProvider extends AllocatorProvider {
         private StdlibHolder() {
             throw new UnsupportedOperationException();
         }
-        public static final MethodHandle MALLOC_HANDLE;
-        public static final MethodHandle FREE_HANDLE;
-        public static final MethodHandle CALLOC_HANDLE;
-        public static final MethodHandle REALLOC_HANDLE;
-        public static final MethodHandle MEMCHR_HANDLE;
-        public static final MethodHandle MEMCMP_HANDLE;
+        public static final MethodHandle mallocMethodHandle;
+        public static final MethodHandle freeMethodHandle;
+        public static final MethodHandle callocMethodHandle;
+        public static final MethodHandle reallocMethodHandle;
+        public static final MethodHandle memchrMethodHandle;
+        public static final MethodHandle memcmpMethodHandle;
         static {
             SymbolLookup stdlib = FFMUtil.ABIHolder.LINKER.defaultLookup();
             MemorySegment address = stdlib.find("malloc")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `malloc`"));
             FunctionDescriptor signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T);
-            MALLOC_HANDLE = MethodHandles.filterReturnValue(
+            mallocMethodHandle = MethodHandles.filterReturnValue(
                     FFMMethodFilters.filterAddressArgument(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0, false),
                     FFMMethodFilters.SEGMENT_TO_INT64);
             address = stdlib.find("free")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `free`"));
             signature = FunctionDescriptor.ofVoid(ValueLayout.ADDRESS);
-            FREE_HANDLE = MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
+            freeMethodHandle = MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
                     FFMMethodFilters.INT64_TO_SEGMENT);
             address = stdlib.find("calloc")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `calloc`"));
             signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T, FFMUtil.ABIHolder.SIZE_T);
-            CALLOC_HANDLE = MethodHandles.filterReturnValue(
+            callocMethodHandle = MethodHandles.filterReturnValue(
                     FFMMethodFilters.filterAddressArgument(
                             FFMMethodFilters.filterAddressArgument(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0, false), 1, false),
                     FFMMethodFilters.SEGMENT_TO_INT64);
             address = stdlib.find("realloc")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `realloc`"));
             signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T);
-            REALLOC_HANDLE = MethodHandles.filterReturnValue(
+            reallocMethodHandle = MethodHandles.filterReturnValue(
                     FFMMethodFilters.filterAddressArgument(
                             MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
                                     FFMMethodFilters.INT64_TO_SEGMENT), 1, false),
@@ -55,7 +55,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
             address = stdlib.find("memchr")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `memchr`"));
             signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.ABIHolder.INT, FFMUtil.ABIHolder.SIZE_T);
-            MEMCHR_HANDLE = MethodHandles.filterReturnValue(
+            memchrMethodHandle = MethodHandles.filterReturnValue(
                     FFMMethodFilters.filterAddressArgument(
                             FFMMethodFilters.filterIntArgument(
                                     MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature), 0,
@@ -63,7 +63,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
             address = stdlib.find("memcmp")
                     .orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `memcmp`"));
             signature = FunctionDescriptor.of(FFMUtil.ABIHolder.INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.ABIHolder.SIZE_T);
-            MEMCMP_HANDLE = FFMMethodFilters.filterIntReturnValue(
+            memcmpMethodHandle = FFMMethodFilters.filterIntReturnValue(
                     FFMMethodFilters.filterAddressArgument(
                             MethodHandles.filterArguments(
                                     MethodHandles.filterArguments(FFMUtil.ABIHolder.LINKER.downcallHandle(address, signature)
@@ -94,7 +94,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public long allocate(long size) {
         try {
-            return (long) StdlibHolder.MALLOC_HANDLE.invokeExact(size);
+            return (long) StdlibHolder.mallocMethodHandle.invokeExact(size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -105,7 +105,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public long allocateInitialized(long count, long size) {
         try {
-            return (long) StdlibHolder.CALLOC_HANDLE.invokeExact(count, size);
+            return (long) StdlibHolder.callocMethodHandle.invokeExact(count, size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -116,7 +116,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public long reallocate(long address, long size) {
         try {
-            return (long) StdlibHolder.REALLOC_HANDLE.invokeExact(address, size);
+            return (long) StdlibHolder.reallocMethodHandle.invokeExact(address, size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -127,7 +127,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public void free(long address) {
        try {
-           StdlibHolder.FREE_HANDLE.invokeExact(address);
+           StdlibHolder.freeMethodHandle.invokeExact(address);
        } catch (RuntimeException | Error e) {
            throw e;
        } catch (Throwable e) {
@@ -138,7 +138,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public long search(long address, byte value, long maxLength) {
         try {
-            return (long) StdlibHolder.MEMCHR_HANDLE.invokeExact(address, value, maxLength);
+            return (long) StdlibHolder.memchrMethodHandle.invokeExact(address, value, maxLength);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {
@@ -163,7 +163,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
     @Override
     public int compare(long aAddress, long bAddress, long size) {
         try {
-            return (int) StdlibHolder.MEMCMP_HANDLE.invokeExact(aAddress, bAddress, size);
+            return (int) StdlibHolder.memcmpMethodHandle.invokeExact(aAddress, bAddress, size);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {

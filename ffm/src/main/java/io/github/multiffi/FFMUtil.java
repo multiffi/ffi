@@ -49,6 +49,7 @@ final class FFMUtil {
                 throw new IllegalStateException("Failed to get the sun.misc.Unsafe instance");
             }
             try {
+                MethodHandles.publicLookup().ensureInitialized(MethodHandles.Lookup.class);
                 Field field = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
                 IMPL_LOOKUP = (MethodHandles.Lookup) UNSAFE.getObject(MethodHandles.Lookup.class, UNSAFE.staticFieldOffset(field));
             } catch (Throwable e) {
@@ -73,10 +74,10 @@ final class FFMUtil {
         private DefineClassHolder() {
             throw new UnsupportedOperationException();
         }
-        public static final MethodHandle DEFINE_CLASS;
+        public static final MethodHandle defineClassMethodHandle;
         static {
             try {
-                DEFINE_CLASS = FFMUtil.UnsafeHolder.IMPL_LOOKUP.findVirtual(ClassLoader.class, "defineClass",
+                defineClassMethodHandle = FFMUtil.UnsafeHolder.IMPL_LOOKUP.findVirtual(ClassLoader.class, "defineClass",
                         MethodType.methodType(Class.class, String.class, byte[].class, int.class, int.class, ProtectionDomain.class));
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new IllegalStateException("Unexpected exception");
@@ -87,7 +88,7 @@ final class FFMUtil {
     public static Class<?> defineClass(ClassLoader classLoader, String name, byte[] bytecode, int offset, int length, ProtectionDomain protectionDomain) {
         if (classLoader == null) classLoader = Thread.currentThread().getContextClassLoader();
         try {
-            return (Class<?>) DefineClassHolder.DEFINE_CLASS.bindTo(classLoader).invokeExact(name, bytecode, offset, length, protectionDomain);
+            return (Class<?>) DefineClassHolder.defineClassMethodHandle.bindTo(classLoader).invokeExact(name, bytecode, offset, length, protectionDomain);
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {

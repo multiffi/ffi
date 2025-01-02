@@ -30,12 +30,9 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.ref.Cleaner;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -78,7 +75,7 @@ public class FFMForeignProvider extends ForeignProvider {
 
     @Override
     public long pageSize() {
-        return FFMUtil.UnsafeHolder.UNSAFE.pageSize();
+        return FFMUtil.UnsafeHolder.UNSAFE.pageSize() & 0xFFFFFFFFL;
     }
 
     private static final class CharsetHolder {
@@ -88,10 +85,7 @@ public class FFMForeignProvider extends ForeignProvider {
         public static final Charset UTF16_CHARSET = FFMUtil.IS_BIG_ENDIAN ? StandardCharsets.UTF_16BE : StandardCharsets.UTF_16LE;
         public static final Charset UTF32_CHARSET = FFMUtil.IS_BIG_ENDIAN ? Charset.forName("UTF-32BE") : Charset.forName("UTF-32LE");
         public static final Charset WIDE_CHARSET = FFMUtil.ABIHolder.WCHAR_T.byteSize() == 2L ? UTF16_CHARSET : UTF32_CHARSET;
-        public static final Charset ANSI_CHARSET = Charset.forName(System.getProperty("native.encoding", System.getProperty("sun.jnu.encoding")));
-        public static final Charset CONSOLE_CHARSET =
-                Charset.forName(System.getProperty("stdout.encoding", System.getProperty("sun.stdout.encoding",
-                        System.getProperty("native.encoding", System.getProperty("sun.jnu.encoding")))));
+        public static final Charset ANSI_CHARSET = Charset.forName(System.getProperty("native.encoding", System.getProperty("sun.jnu.encoding", Charset.defaultCharset().name())));
     }
 
     @Override
@@ -112,137 +106,6 @@ public class FFMForeignProvider extends ForeignProvider {
     @Override
     public Charset utf32Charset() {
         return CharsetHolder.UTF32_CHARSET;
-    }
-
-    @Override
-    public Charset consoleCharset() {
-        return CharsetHolder.CONSOLE_CHARSET;
-    }
-
-    @Override
-    public ByteBuffer wrapDirectBuffer(long address, int capacity) {
-        return MemorySegment.ofAddress(address).reinterpret(capacity).asByteBuffer();
-    }
-
-    @Override
-    public ByteBuffer wrapDirectBuffer(long address) {
-        return MemorySegment.ofAddress(address).reinterpret(Integer.MAX_VALUE - 8).asByteBuffer();
-    }
-
-    private static final class BufferFieldMethodHolder {
-        private BufferFieldMethodHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final Field ADDRESS;
-        public static final Method BASE;
-        static {
-            try {
-                ADDRESS = Buffer.class.getDeclaredField("address");
-                BASE = Buffer.class.getDeclaredMethod("base");
-            }
-            catch (NoSuchFieldException | NoSuchMethodException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
-        }
-    }
-
-    @Override
-    public long getDirectBufferAddress(Buffer buffer) {
-        if (buffer.isDirect()) return FFMUtil.UnsafeHolder.UNSAFE.getLong(buffer,
-                FFMUtil.UnsafeHolder.UNSAFE.objectFieldOffset(BufferFieldMethodHolder.ADDRESS));
-        else return 0;
-    }
-
-    @Override
-    public boolean isByteBuffer(Buffer buffer) {
-        return buffer instanceof ByteBuffer || (buffer != null && buffer.getClass().getSimpleName().startsWith("ByteBufferAs"));
-    }
-
-    @Override
-    public ByteBuffer getByteBuffer(Buffer buffer) {
-        if (buffer instanceof ByteBuffer) return (ByteBuffer) buffer;
-        else if (buffer != null && buffer.getClass().getSimpleName().startsWith("ByteBufferAs")) {
-            try {
-                return (ByteBuffer) FFMUtil.UnsafeHolder.UNSAFE.getObject(buffer,
-                        FFMUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
-            } catch (NoSuchFieldException | ClassCastException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
-        }
-        else return null;
-    }
-
-    @Override
-    public void cleanBuffer(Buffer buffer) {
-        ByteBuffer byteBuffer = getByteBuffer(buffer);
-        if (byteBuffer != null) FFMUtil.UnsafeHolder.UNSAFE.invokeCleaner(byteBuffer);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T extends Buffer> T getBufferAttachment(T buffer) {
-        if (buffer == null || !buffer.isDirect()) return null;
-        else {
-            try {
-                return (T) FFMUtil.UnsafeHolder.IMPL_LOOKUP
-                        .unreflect(buffer.getClass().getMethod("attachment")).bindTo(buffer).invokeWithArguments();
-            } catch (NoSuchMethodException | ClassCastException | IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
-            } catch (RuntimeException | Error e) {
-                throw e;
-            } catch (Throwable e) {
-                throw new IllegalStateException(e);
-            }
-        }
-    }
-
-    @Override
-    public <T extends Buffer> T sliceBuffer(T buffer, int index, int length) {
-        buffer.slice(index, length);
-        return buffer;
-    }
-
-    @Override
-    public <T extends Buffer> T sliceBuffer(T buffer, int index) {
-        buffer.slice(index, buffer.capacity() - index);
-        return buffer;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T extends Buffer> T duplicateBuffer(T buffer) {
-        return (T) buffer.duplicate();
-    }
-
-    @Override
-    public Object getHeapBufferArray(Buffer buffer) {
-        if (buffer.isDirect()) return null;
-        else if (buffer.isReadOnly()) {
-            try {
-                return FFMUtil.UnsafeHolder.IMPL_LOOKUP.unreflect(BufferFieldMethodHolder.BASE).bindTo(buffer).invokeWithArguments();
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
-            } catch (RuntimeException | Error e) {
-                throw e;
-            } catch (Throwable e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        else return buffer.array();
-    }
-
-    @Override
-    public int getHeapBufferArrayOffset(Buffer buffer) {
-        if (buffer.isDirect()) return 0;
-        else if (buffer.isReadOnly()) {
-            try {
-                return FFMUtil.UnsafeHolder.UNSAFE.getInt(buffer,
-                        FFMUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
-            } catch (NoSuchFieldException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
-        }
-        else return buffer.arrayOffset() * FFMUtil.UnsafeHolder.UNSAFE.arrayIndexScale(buffer.array().getClass());
     }
 
     @Override
@@ -331,12 +194,11 @@ public class FFMForeignProvider extends ForeignProvider {
             boolean isLinux = FFMUtil.osNameStartsWithIgnoreCase("linux");
             String libraryName;
             if (FFMUtil.IS_WINDOWS) libraryName = FFMUtil.OS_NAME.startsWith("Windows CE") ? "coredll" : "msvcrt";
-            else if (isLinux) libraryName = "libc.so.6";
             else libraryName = "c";
             // libc lookup
-            lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.LIBRARY_NAME_MAPPER.apply(libraryName), Arena.global()));
+            if (!isLinux) lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName), Arena.global()));
             // libm lookup
-            if (!FFMUtil.IS_WINDOWS) lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.LIBRARY_NAME_MAPPER.apply(isLinux ? "libm.so.6" : "m"), Arena.global()));
+            if (!FFMUtil.IS_WINDOWS && !isLinux) lookup = lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply("m"), Arena.global()));
             GLOBAL_LOOKUP_REFERENCE.set(lookup);
         }
     }
@@ -345,7 +207,7 @@ public class FFMForeignProvider extends ForeignProvider {
     public void loadLibrary(String libraryName) throws IOException {
         Objects.requireNonNull(libraryName);
         try {
-            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(libraryName, Arena.global())));
+            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName), Arena.global())));
         }
         catch (IllegalArgumentException e) {
             throw new IOException(e.getMessage());
@@ -356,7 +218,7 @@ public class FFMForeignProvider extends ForeignProvider {
     public void loadLibrary(File libraryFile) throws IOException {
         Objects.requireNonNull(libraryFile);
         try {
-            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(libraryFile.getAbsoluteFile().toPath(), Arena.global())));
+            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryFile.getAbsoluteFile().getAbsolutePath()), Arena.global())));
         }
         catch (IllegalArgumentException e) {
             throw new IOException(e.getMessage());
@@ -365,6 +227,7 @@ public class FFMForeignProvider extends ForeignProvider {
 
     @Override
     public long getSymbol(String symbolName) {
+        Objects.requireNonNull(symbolName);
         Optional<MemorySegment> symbol = SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.get().find(symbolName);
         if (symbol.isPresent()) return symbol.get().address();
         else throw new UnsatisfiedLinkException(String.format("Failed to get symbol: `%s`", symbolName));
@@ -374,23 +237,28 @@ public class FFMForeignProvider extends ForeignProvider {
         private LibraryNameMapperHolder() {
             throw new UnsupportedOperationException();
         }
-        public static final Function<String, String> LIBRARY_NAME_MAPPER;
+        public static final Function<String, String> libraryNameMapperFunction;
         static {
-            if (FFMUtil.IS_WINDOWS) LIBRARY_NAME_MAPPER = libraryName -> {
-                if (libraryName.matches(".*\\.dll$")) return libraryName;
+            if (FFMUtil.IS_WINDOWS) libraryNameMapperFunction = libraryName -> {
+                if (libraryName.matches(".*\\.(drv|dll|ocx)$")) return libraryName;
                 else return System.mapLibraryName(libraryName);
             };
             else if (FFMUtil.osNameStartsWithIgnoreCase("mac") || FFMUtil.osNameStartsWithIgnoreCase("darwin"))
-                LIBRARY_NAME_MAPPER = libraryName -> {
+                libraryNameMapperFunction = libraryName -> {
                 if (libraryName.matches("lib.*\\.(dylib|jnilib)$")) return libraryName;
                 else return "lib" + libraryName + ".dylib";
             };
+            else if (FFMUtil.osNameStartsWithIgnoreCase("aix"))
+                libraryNameMapperFunction = libraryName -> {
+                if (libraryName.matches("lib.*\\.so.*$") || libraryName.matches("lib.*\\.(a|a\\(shr.o\\))$")) return libraryName;
+                else return "lib" + libraryName + ".a";
+            };
             else if (FFMUtil.osNameStartsWithIgnoreCase("os/400") || FFMUtil.osNameStartsWithIgnoreCase("os400"))
-                LIBRARY_NAME_MAPPER = libraryName -> {
+                libraryNameMapperFunction = libraryName -> {
                 if (libraryName.matches("lib.*\\.so.*$")) return libraryName;
                 else return "lib" + libraryName + ".so";
             };
-            else LIBRARY_NAME_MAPPER = libraryName -> {
+            else libraryNameMapperFunction = libraryName -> {
                 if (libraryName.matches("lib.*\\.so.*$")) return libraryName;
                 else return System.mapLibraryName(libraryName);
             };
@@ -400,7 +268,7 @@ public class FFMForeignProvider extends ForeignProvider {
     @Override
     public String mapLibraryName(String libraryName) {
         if (libraryName == null) return null;
-        else return LibraryNameMapperHolder.LIBRARY_NAME_MAPPER.apply(libraryName);
+        else return LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName);
     }
 
     @Override
@@ -417,7 +285,7 @@ public class FFMForeignProvider extends ForeignProvider {
         private ErrorStringMapperHolder() {
             throw new UnsupportedOperationException();
         }
-        public static final IntFunction<String> ERROR_STRING_MAPPER;
+        public static final IntFunction<String> errorStringMapperFunction;
         static {
             if (FFMUtil.IS_WINDOWS) {
                 SymbolLookup Kernel32 = SymbolLookup.libraryLookup("kernel32.dll", Arena.global());
@@ -430,7 +298,7 @@ public class FFMForeignProvider extends ForeignProvider {
                                 .find("LocalFree").orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `LocalFree`")),
                         FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
                 ThreadLocal<MemorySegment> lpBufferThreadLocal = ThreadLocal.withInitial(() -> Arena.global().allocate(FFMUtil.UnsafeHolder.UNSAFE.addressSize()));
-                ERROR_STRING_MAPPER = errno -> {
+                errorStringMapperFunction = errno -> {
                     MemorySegment lpBuffer = lpBufferThreadLocal.get();
                     lpBuffer.set(ValueLayout.ADDRESS, 0, MemorySegment.NULL);
                     try {
@@ -442,7 +310,7 @@ public class FFMForeignProvider extends ForeignProvider {
                                 lpBuffer,
                                 0,
                                 MemorySegment.NULL) == 0) return "FormatMessage failed with 0x" + Integer.toHexString(errno);
-                        else return lpBuffer.getString(0, CharsetHolder.WIDE_CHARSET);
+                        else return lpBuffer.get(ValueLayout.ADDRESS, 0).reinterpret((Integer.MAX_VALUE - 8) & 0xFFFFFFFFL).getString(0, CharsetHolder.WIDE_CHARSET);
                     } catch (RuntimeException | Error e) {
                         throw e;
                     } catch (Throwable e) {
@@ -463,11 +331,12 @@ public class FFMForeignProvider extends ForeignProvider {
                         FFMUtil.ABIHolder.LINKER.defaultLookup().find("strerror").orElseThrow(() -> new UnsatisfiedLinkException("Failed to get symbol: `strerror`")),
                         FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.ABIHolder.LINKER.canonicalLayouts().get("int"))
                 );
-                ERROR_STRING_MAPPER = errno -> {
+                errorStringMapperFunction = errno -> {
                     try {
-                        return ((MemorySegment) strerror.invokeExact(errno)).reinterpret(
-                                        FFMUtil.UnsafeHolder.UNSAFE.addressSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE)
-                                .getString(0, CharsetHolder.ANSI_CHARSET);
+                        MemorySegment errorString = ((MemorySegment) strerror.invokeExact(errno)).reinterpret(
+                                        FFMUtil.UnsafeHolder.UNSAFE.addressSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE);
+                        if (MemorySegment.NULL.equals(errorString)) return "strerror failed with 0x" + Integer.toHexString(errno);
+                        else return errorString.getString(0, CharsetHolder.ANSI_CHARSET);
                     } catch (RuntimeException | Error e) {
                         throw e;
                     } catch (Throwable e) {
@@ -480,7 +349,7 @@ public class FFMForeignProvider extends ForeignProvider {
 
     @Override
     public String getErrorString(int errno) {
-        return ErrorStringMapperHolder.ERROR_STRING_MAPPER.apply(errno);
+        return ErrorStringMapperHolder.errorStringMapperFunction.apply(errno);
     }
 
     @Override
@@ -538,7 +407,7 @@ public class FFMForeignProvider extends ForeignProvider {
             classInternalNames[i] = Type.getInternalName(classes[i]);
         }
 
-        ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
 
         classWriter.visit(Opcodes.V1_8, Opcodes.ACC_PRIVATE | Opcodes.ACC_SUPER,
                 proxyInternalName, null, "java/lang/Object", classInternalNames);
@@ -584,7 +453,7 @@ public class FFMForeignProvider extends ForeignProvider {
                     }
                 }
                 if (saveErrno && critical) critical = trivial = false;
-                int firstVarargIndex = callOptionVisitor.visitFirstVariadicArgument(method);
+                int firstVarArgIndex = callOptionVisitor.visitFirstVarArgIndex(method);
                 long address = callOptionVisitor.visitAddress(method);
 
                 classWriter.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
@@ -650,7 +519,7 @@ public class FFMForeignProvider extends ForeignProvider {
                     classInit.visitTypeInsn(Opcodes.NEW, "io/github/multiffi/FFMFunctionHandle");
                     classInit.visitInsn(Opcodes.DUP);
                     classInit.visitLdcInsn(address);
-                    classInit.visitLdcInsn(firstVarargIndex);
+                    classInit.visitLdcInsn(firstVarArgIndex);
                     dumpForeignType(classInit, returnType, returnForeignType);
                     classInit.visitVarInsn(Opcodes.ALOAD, 1);
                     classInit.visitVarInsn(Opcodes.ALOAD, 2);
@@ -867,7 +736,7 @@ public class FFMForeignProvider extends ForeignProvider {
                     int linkerOptionsLength = 0;
                     if (saveErrno) linkerOptionsLength ++;
                     if (critical) linkerOptionsLength ++;
-                    if (firstVarargIndex != -1) linkerOptionsLength ++;
+                    if (firstVarArgIndex != -1) linkerOptionsLength ++;
                     classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsLength);
                     classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/foreign/Linker$Option");
                     classInit.visitVarInsn(Opcodes.ASTORE, 3);
@@ -899,8 +768,8 @@ public class FFMForeignProvider extends ForeignProvider {
                         classInit.visitVarInsn(Opcodes.ALOAD, 4);
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
-                    if (firstVarargIndex != -1) {
-                        classInit.visitLdcInsn(firstVarargIndex);
+                    if (firstVarArgIndex != -1) {
+                        classInit.visitLdcInsn(firstVarArgIndex);
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                                 "firstVariadicArg", "(I)Ljava/lang/foreign/Linker$Option;", true);
                         classInit.visitVarInsn(Opcodes.ASTORE, 4);
