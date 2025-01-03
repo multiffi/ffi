@@ -203,7 +203,8 @@ public class JNAFunctionHandle extends FunctionHandle {
                 for (int i = 0; i < arguments.length; i ++) {
                     arguments[i] = checkArgument(parameterTypes.get(i), args[i]);
                 }
-                result = JNAUtil.invoke(returnType.carrier(), function, Pointer.nativeValue(function), callFlags, arguments);
+                result = JNAUtil.invoke(returnType == ScalarType.ADDRESS ? Pointer.class : returnType.carrier(),
+                        function, Pointer.nativeValue(function), callFlags, arguments);
             }
         }
         finally {
