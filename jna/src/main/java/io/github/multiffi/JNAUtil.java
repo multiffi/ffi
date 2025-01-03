@@ -161,7 +161,7 @@ final class JNAUtil {
         else if (returnType == char.class || returnType == Character.class)
             return (char) JNAAccessor.invokeInt(function, address, callFlags, args);
         else if (returnType == Pointer.class)
-            return JNAAccessor.invokeDouble(function, address, callFlags, args);
+            return JNAAccessor.invokePointer(function, address, callFlags, args);
         else return JNAAccessor.invokeStructure((Structure) returnType, function, address, callFlags, args);
     }
 
