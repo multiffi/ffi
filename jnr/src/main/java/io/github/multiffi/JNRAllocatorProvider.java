@@ -1,23 +1,11 @@
 package io.github.multiffi;
 
-import com.sun.jna.Native;
-import com.sun.jna.Platform;
-import com.sun.jna.Pointer;
 import multiffi.spi.AllocatorProvider;
 
 import java.lang.reflect.Array;
 
 @SuppressWarnings({"deprecation", "removal"})
-public class JNAAllocatorProvider extends AllocatorProvider {
-
-    private static native Pointer calloc(JNAMappedTypes.size_t count, JNAMappedTypes.size_t size);
-    private static native Pointer realloc(Pointer address, JNAMappedTypes.size_t size);
-    private static native Pointer memchr(Pointer address, int value, JNAMappedTypes.size_t maxLength);
-    private static native int memcmp(Pointer aAddress, Pointer bAddress, JNAMappedTypes.size_t size);
-    
-    static {
-        Native.register(JNAAllocatorProvider.class, Platform.C_LIBRARY_NAME);
-    }
+public class JNRAllocatorProvider extends AllocatorProvider {
 
     private static int compareUnsigned(byte a, byte b) {
         return Byte.toUnsignedInt(a) - Byte.toUnsignedInt(b);
@@ -33,7 +21,7 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         if (array == null || !array.getClass().isArray() || !array.getClass().getComponentType().isPrimitive())
             throw new IllegalArgumentException("not a primitive array");
         else if (array.getClass().getComponentType() == boolean.class) throw new IllegalArgumentException("boolean array not supported");
-        else return (long) Array.getLength(array) * JNAUtil.UnsafeHolder.UNSAFE.arrayIndexScale(array.getClass());
+        else return (long) Array.getLength(array) * JNRUtil.UnsafeHolder.UNSAFE.arrayIndexScale(array.getClass());
     }
 
     private static void checkArray(Object array, long arrayOffset, long size) {
@@ -45,27 +33,27 @@ public class JNAAllocatorProvider extends AllocatorProvider {
 
     @Override
     public long allocate(long size) {
-        return Native.malloc(size);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.allocateMemory(size, false);
     }
 
     @Override
     public long allocateInitialized(long count, long size) {
-        return Pointer.nativeValue(calloc(new JNAMappedTypes.size_t(count), new JNAMappedTypes.size_t(size)));
+        return JNRLibraries.Memory.INSTANCE.calloc(count, size);
     }
 
     @Override
     public long reallocate(long address, long size) {
-        return Pointer.nativeValue(realloc(new Pointer(address), new JNAMappedTypes.size_t(size)));
+        return JNRLibraries.Memory.INSTANCE.realloc(address, size);
     }
 
     @Override
     public void free(long address) {
-        Native.free(address);
+        JNRUtil.UnsafeHolder.MEMORY_IO.freeMemory(address);
     }
 
     @Override
     public long search(long address, byte value, long maxLength) {
-        return Pointer.nativeValue(memchr(new Pointer(address), value & 0xFF, new JNAMappedTypes.size_t(maxLength)));
+        return JNRUtil.UnsafeHolder.MEMORY_IO.memchr(address, value, maxLength);
     }
 
     @Override
@@ -75,16 +63,16 @@ public class JNAAllocatorProvider extends AllocatorProvider {
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(arrayOffset));
         long remaining = arrayLength - arrayOffset;
         if (maxLength < 0 || maxLength > remaining) maxLength = remaining;
-        long arrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass());
+        long arrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass());
         for (long i = 0; i < maxLength; i ++) {
-            if (JNAUtil.UnsafeHolder.UNSAFE.getByte(array, arrayBaseOffset + arrayOffset + i) == value) return arrayOffset + i;
+            if (JNRUtil.UnsafeHolder.UNSAFE.getByte(array, arrayBaseOffset + arrayOffset + i) == value) return arrayOffset + i;
         }
         return -1;
     }
 
     @Override
     public int compare(long aAddress, long bAddress, long size) {
-        return memcmp(new Pointer(aAddress), new Pointer(bAddress), new JNAMappedTypes.size_t(size));
+        return JNRLibraries.Memory.INSTANCE.memcmp(aAddress, bAddress, size);
     }
 
     @Override
@@ -94,10 +82,10 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         unsignedAddExact(aAddress, size);
-        long arrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(bArray.getClass());
+        long arrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(bArray.getClass());
         for (long i = 0; i < size; i ++) {
-            int cmp = compareUnsigned(JNAUtil.UnsafeHolder.UNSAFE.getByte(aAddress + i),
-                    JNAUtil.UnsafeHolder.UNSAFE.getByte(bArray, arrayBaseOffset + bArrayOffset + i));
+            int cmp = compareUnsigned(JNRUtil.UnsafeHolder.MEMORY_IO.getByte(aAddress + i),
+                    JNRUtil.UnsafeHolder.UNSAFE.getByte(bArray, arrayBaseOffset + bArrayOffset + i));
             if (cmp != 0) return cmp;
         }
         return 0;
@@ -110,10 +98,10 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         unsignedAddExact(bAddress, size);
-        long arrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
+        long arrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
         for (long i = 0; i < size; i ++) {
-            int cmp = compareUnsigned(JNAUtil.UnsafeHolder.UNSAFE.getByte(aArray, arrayBaseOffset + aArrayOffset + i),
-                    JNAUtil.UnsafeHolder.UNSAFE.getByte(bAddress + i));
+            int cmp = compareUnsigned(JNRUtil.UnsafeHolder.UNSAFE.getByte(aArray, arrayBaseOffset + aArrayOffset + i),
+                    JNRUtil.UnsafeHolder.MEMORY_IO.getByte(bAddress + i));
             if (cmp != 0) return cmp;
         }
         return 0;
@@ -129,11 +117,11 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         index = unsignedAddExact(bArrayOffset, size);
         if (index < 0 || index > bArrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        long aArrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
-        long bArrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
+        long aArrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
+        long bArrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
         for (long i = 0; i < size; i ++) {
-            int cmp = compareUnsigned(JNAUtil.UnsafeHolder.UNSAFE.getByte(aArray, aArrayBaseOffset + aArrayOffset + i),
-                    JNAUtil.UnsafeHolder.UNSAFE.getByte(bArray, bArrayBaseOffset + bArrayOffset + i));
+            int cmp = compareUnsigned(JNRUtil.UnsafeHolder.UNSAFE.getByte(aArray, aArrayBaseOffset + aArrayOffset + i),
+                    JNRUtil.UnsafeHolder.UNSAFE.getByte(bArray, bArrayBaseOffset + bArrayOffset + i));
             if (cmp != 0) return cmp;
         }
         return 0;
@@ -141,7 +129,7 @@ public class JNAAllocatorProvider extends AllocatorProvider {
 
     @Override
     public long fill(long address, byte value, long size) {
-        JNAUtil.UnsafeHolder.UNSAFE.setMemory(address, size, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.setMemory(address, size, value);
         return address;
     }
 
@@ -151,13 +139,13 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         long index = unsignedAddExact(arrayOffset, size);
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        JNAUtil.UnsafeHolder.UNSAFE.setMemory(array, arrayOffset, size, value);
+        JNRUtil.UnsafeHolder.UNSAFE.setMemory(array, arrayOffset, size, value);
         return array;
     }
 
     @Override
     public long copy(long destAddress, long srcAddress, long size) {
-        JNAUtil.UnsafeHolder.UNSAFE.copyMemory(srcAddress, destAddress, size);
+        JNRUtil.UnsafeHolder.MEMORY_IO.copyMemory(srcAddress, destAddress, size);
         return destAddress;
     }
 
@@ -168,10 +156,10 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         unsignedAddExact(destAddress, size);
-        long arrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(srcArray.getClass());
+        long arrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(srcArray.getClass());
         for (long i = 0; i < size; i ++) {
-            JNAUtil.UnsafeHolder.UNSAFE.putByte(destAddress + i,
-                    JNAUtil.UnsafeHolder.UNSAFE.getByte(srcArray, arrayBaseOffset + srcArrayOffset + i));
+            JNRUtil.UnsafeHolder.MEMORY_IO.putByte(destAddress + i,
+                    JNRUtil.UnsafeHolder.UNSAFE.getByte(srcArray, arrayBaseOffset + srcArrayOffset + i));
         }
         return destAddress;
     }
@@ -183,10 +171,10 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         if (index < 0 || index > arrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         unsignedAddExact(srcAddress, size);
-        long arrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(destArray.getClass());
+        long arrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(destArray.getClass());
         for (long i = 0; i < size; i ++) {
-            JNAUtil.UnsafeHolder.UNSAFE.putByte(destArray, arrayBaseOffset + destArrayOffset + i,
-                    JNAUtil.UnsafeHolder.UNSAFE.getByte(srcAddress + i));
+            JNRUtil.UnsafeHolder.UNSAFE.putByte(destArray, arrayBaseOffset + destArrayOffset + i,
+                    JNRUtil.UnsafeHolder.MEMORY_IO.getByte(srcAddress + i));
         }
         return destArray;
     }
@@ -201,187 +189,187 @@ public class JNAAllocatorProvider extends AllocatorProvider {
         index = unsignedAddExact(srcArrayOffset, size);
         if (index < 0 || index > srcArrayLength)
             throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
-        long destArrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(destArray.getClass());
-        long srcArrayBaseOffset = JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(srcArray.getClass());
-        JNAUtil.UnsafeHolder.UNSAFE.copyMemory(srcArray, srcArrayBaseOffset + srcArrayOffset,
+        long destArrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(destArray.getClass());
+        long srcArrayBaseOffset = JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(srcArray.getClass());
+        JNRUtil.UnsafeHolder.UNSAFE.copyMemory(srcArray, srcArrayBaseOffset + srcArrayOffset,
                 destArray, destArrayBaseOffset + destArrayOffset, size);
         return destArray;
     }
 
     @Override
     public boolean getBoolean(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getByte(address) != 0;
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getByte(address) != 0;
     }
 
     @Override
     public byte getInt8(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getByte(address);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getByte(address);
     }
 
     @Override
     public short getInt16(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getShort(address);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getShort(address);
     }
 
     @Override
     public char getUTF16(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getChar(address);
+        return (char) JNRUtil.UnsafeHolder.MEMORY_IO.getShort(address);
     }
 
     @Override
     public int getInt32(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getInt(address);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getInt(address);
     }
 
     @Override
     public long getInt64(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getLong(address);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getLong(address);
     }
 
     @Override
     public float getFloat(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getFloat(address);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getFloat(address);
     }
 
     @Override
     public double getDouble(long address) {
-        return JNAUtil.UnsafeHolder.UNSAFE.getDouble(address);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.getDouble(address);
     }
 
     @Override
     public void setBoolean(long address, boolean value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putByte(address, (byte) (value ? 1 : 0));
+        JNRUtil.UnsafeHolder.MEMORY_IO.putByte(address, (byte) (value ? 1 : 0));
     }
 
     @Override
     public void setInt8(long address, byte value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putByte(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putByte(address, value);
     }
 
     @Override
     public void setInt16(long address, short value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putShort(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putShort(address, value);
     }
 
     @Override
     public void setUTF16(long address, char value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putChar(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putShort(address, (short) value);
     }
 
     @Override
     public void setInt32(long address, int value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putInt(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putInt(address, value);
     }
 
     @Override
     public void setInt64(long address, long value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putLong(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putLong(address, value);
     }
 
     @Override
     public void setFloat(long address, float value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putFloat(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putFloat(address, value);
     }
 
     @Override
     public void setDouble(long address, double value) {
-        JNAUtil.UnsafeHolder.UNSAFE.putDouble(address, value);
+        JNRUtil.UnsafeHolder.MEMORY_IO.putDouble(address, value);
     }
 
     @Override
     public boolean getBoolean(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 1);
-        return JNAUtil.UnsafeHolder.UNSAFE.getBoolean(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getBoolean(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public byte getInt8(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 1);
-        return JNAUtil.UnsafeHolder.UNSAFE.getByte(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getByte(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public short getInt16(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 2);
-        return JNAUtil.UnsafeHolder.UNSAFE.getShort(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getShort(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public char getUTF16(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 2);
-        return JNAUtil.UnsafeHolder.UNSAFE.getChar(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getChar(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public int getInt32(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 4);
-        return JNAUtil.UnsafeHolder.UNSAFE.getInt(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getInt(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public long getInt64(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 8);
-        return JNAUtil.UnsafeHolder.UNSAFE.getLong(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getLong(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public float getFloat(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 4);
-        return JNAUtil.UnsafeHolder.UNSAFE.getFloat(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getFloat(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public double getDouble(Object array, long arrayOffset) {
         checkArray(array, arrayOffset, 8);
-        return JNAUtil.UnsafeHolder.UNSAFE.getDouble(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
+        return JNRUtil.UnsafeHolder.UNSAFE.getDouble(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset);
     }
 
     @Override
     public void setBoolean(Object array, long arrayOffset, boolean value) {
         checkArray(array, arrayOffset, 1);
-        JNAUtil.UnsafeHolder.UNSAFE.putBoolean(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putBoolean(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setInt8(Object array, long arrayOffset, byte value) {
         checkArray(array, arrayOffset, 1);
-        JNAUtil.UnsafeHolder.UNSAFE.putByte(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putByte(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setInt16(Object array, long arrayOffset, short value) {
         checkArray(array, arrayOffset, 2);
-        JNAUtil.UnsafeHolder.UNSAFE.putShort(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putShort(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setUTF16(Object array, long arrayOffset, char value) {
         checkArray(array, arrayOffset, 2);
-        JNAUtil.UnsafeHolder.UNSAFE.putChar(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putChar(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setInt32(Object array, long arrayOffset, int value) {
         checkArray(array, arrayOffset, 4);
-        JNAUtil.UnsafeHolder.UNSAFE.putInt(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putInt(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setInt64(Object array, long arrayOffset, long value) {
         checkArray(array, arrayOffset, 8);
-        JNAUtil.UnsafeHolder.UNSAFE.putLong(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putLong(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setFloat(Object array, long arrayOffset, float value) {
         checkArray(array, arrayOffset, 4);
-        JNAUtil.UnsafeHolder.UNSAFE.putFloat(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putFloat(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
     @Override
     public void setDouble(Object array, long arrayOffset, double value) {
         checkArray(array, arrayOffset, 8);
-        JNAUtil.UnsafeHolder.UNSAFE.putDouble(array, JNAUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
+        JNRUtil.UnsafeHolder.UNSAFE.putDouble(array, JNRUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(array.getClass()) + arrayOffset, value);
     }
 
 }

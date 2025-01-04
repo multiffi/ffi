@@ -52,9 +52,10 @@ public abstract class FunctionHandle {
             }
         };
 
-        public static final InvokeAdapter64 SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
-        public static final InvokeAdapter64 INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
-        public static final InvokeAdapter64 LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
+        public static final InvokeAdapter64 SHORT = Foreign.shortSize() == 8L ? SIZE64 : SIZE16;
+        public static final InvokeAdapter64 INT = Foreign.intSize() == 8L ? SIZE64 : SIZE32;
+        public static final InvokeAdapter64 LONG = Foreign.longSize() == 8L ? SIZE64 : SIZE32;
+        public static final InvokeAdapter64 SIZE = Foreign.addressSize() == 8L ? SIZE64 : SIZE32;
 
     }
     public abstract static class InvokeAdapter32 {
@@ -74,7 +75,7 @@ public abstract class FunctionHandle {
             }
         };
 
-        public static final InvokeAdapter32 WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
+        public static final InvokeAdapter32 WCHAR = Foreign.wcharSize() == 4L ? SIZE32 : SIZE16;
 
     }
 
@@ -92,6 +93,9 @@ public abstract class FunctionHandle {
     }
     public long invokeLong(Object... args) {
         return InvokeAdapter64.LONG.invoke(this, args);
+    }
+    public long invokeSize(Object... args) {
+        return InvokeAdapter64.SIZE.invoke(this, args);
     }
 
 }

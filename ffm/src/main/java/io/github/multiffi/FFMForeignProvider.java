@@ -189,8 +189,8 @@ public class FFMForeignProvider extends ForeignProvider {
         }
         public static final AtomicReference<SymbolLookup> GLOBAL_LOOKUP_REFERENCE = new AtomicReference<>();
         static {
-            // ClassLoader & C runtime default lookup
-            SymbolLookup lookup = SymbolLookup.loaderLookup().or(FFMUtil.ABIHolder.LINKER.defaultLookup());
+            // C runtime default lookup
+            SymbolLookup lookup = FFMUtil.ABIHolder.LINKER.defaultLookup();
             String libraryName;
             if (FFMUtil.IS_WINDOWS) libraryName = FFMUtil.IS_WINDOWS_CE ? "coredll" : "msvcrt";
             else if (FFMUtil.IS_AIX || FFMUtil.IS_IBMI) libraryName = FFMUtil.ABIHolder.SIZE_T.byteSize() == 4L ? "libc.a(shr.o)" : "libc.a(shr_64.o)";
@@ -230,7 +230,7 @@ public class FFMForeignProvider extends ForeignProvider {
     @Override
     public long getSymbolAddress(String symbolName) {
         Objects.requireNonNull(symbolName);
-        Optional<MemorySegment> symbol = SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.get().find(symbolName);
+        Optional<MemorySegment> symbol = SymbolLookup.loaderLookup().or(SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.get()).find(symbolName);
         if (symbol.isPresent()) return symbol.get().address();
         else throw new UnsatisfiedLinkException(String.format("Failed to get symbol: `%s`", symbolName));
     }
@@ -411,7 +411,10 @@ public class FFMForeignProvider extends ForeignProvider {
         if (classes.length == 0) return null;
         else if (classes.length > 65535)
             throw new IllegalArgumentException("interface limit exceeded: " + classes.length);
-        if (classLoader == null) classLoader = Thread.currentThread().getContextClassLoader();
+        if (classLoader == null) {
+            Class<?> clazz = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).getCallerClass();
+            classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
+        }
         checkProxyClasses(classLoader, classes);
 
         String proxyName = "multiffi.ffm.Proxy$" + nextSerialNumber.getAndIncrement();

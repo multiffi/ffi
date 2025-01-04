@@ -446,6 +446,11 @@ public class FFMFunctionHandle extends FunctionHandle {
     }
 
     @Override
+    public long invokeSize(Object... args) {
+        return ((Number) invokeFunction.apply(args)).longValue();
+    }
+
+    @Override
     public long invokeAddress(Object... args) {
         return ((Number) invokeFunction.apply(args)).longValue();
     }

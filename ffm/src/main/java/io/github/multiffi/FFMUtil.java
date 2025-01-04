@@ -91,7 +91,6 @@ final class FFMUtil {
     }
 
     public static Class<?> defineClass(ClassLoader classLoader, String name, byte[] bytecode, int offset, int length, ProtectionDomain protectionDomain) {
-        if (classLoader == null) classLoader = Thread.currentThread().getContextClassLoader();
         try {
             return (Class<?>) DefineClassHolder.defineClassMethodHandle.bindTo(classLoader).invokeExact(name, bytecode, offset, length, protectionDomain);
         } catch (RuntimeException | Error e) {

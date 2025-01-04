@@ -20,7 +20,7 @@ public final class FFMMethodFilters {
                 .reinterpret(handle.isBounded() ? handle.size() : Foreign.addressSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE);
         else {
             Object array = handle.array();
-            return switch (array) {
+            MemorySegment segment = switch (array) {
                 case byte[] byteArray -> MemorySegment.ofArray(byteArray);
                 case short[] shortArray -> MemorySegment.ofArray(shortArray);
                 case int[] intArray -> MemorySegment.ofArray(intArray);
@@ -30,6 +30,7 @@ public final class FFMMethodFilters {
                 case char[] charArray -> MemorySegment.ofArray(charArray);
                 case null, default -> throw new IllegalStateException("Unexpected exception");
             };
+            return handle.arrayOffset() == 0L ? segment : segment.asSlice(handle.arrayOffset());
         }
     }
     private static MemoryHandle segmentToHandle(MemorySegment segment) {

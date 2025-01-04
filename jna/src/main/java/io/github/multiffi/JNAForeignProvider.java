@@ -23,7 +23,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
@@ -190,7 +192,9 @@ public class JNAForeignProvider extends ForeignProvider {
     public void loadLibrary(String libraryName) throws IOException {
         Objects.requireNonNull(libraryName);
         try {
-            NativeLibraryHolder.NATIVE_LIBRARIES.add(NativeLibrary.getInstance(libraryName));
+            synchronized (NativeLibraryHolder.NATIVE_LIBRARIES) {
+                NativeLibraryHolder.NATIVE_LIBRARIES.add(NativeLibrary.getInstance(libraryName));
+            }
         }
         catch (UnsatisfiedLinkError e) {
             throw new IOException(e.getMessage());
@@ -201,10 +205,73 @@ public class JNAForeignProvider extends ForeignProvider {
     public void loadLibrary(File libraryFile) throws IOException {
         Objects.requireNonNull(libraryFile);
         try {
-            NativeLibraryHolder.NATIVE_LIBRARIES.add(NativeLibrary.getInstance(libraryFile.getAbsolutePath()));
+            synchronized (NativeLibraryHolder.NATIVE_LIBRARIES) {
+                NativeLibraryHolder.NATIVE_LIBRARIES.add(NativeLibrary.getInstance(libraryFile.getAbsolutePath()));
+            }
         }
         catch (UnsatisfiedLinkError e) {
             throw new IOException(e.getMessage());
+        }
+    }
+
+    public static final class GetCallerClassHolder {
+        private GetCallerClassHolder() {
+            throw new UnsupportedOperationException();
+        }
+        public static final Method getCallerClassReflectionMethod;
+        public static final Method getInstanceStackWalkerMethod;
+        public static final Method getCallerClassStackWalkerMethod;
+        public static final Object retainClassReferenceOption;
+        static {
+            Method method;
+            try {
+                Class<?> reflectionClass = Class.forName("sun.reflect.Reflection");
+                method = reflectionClass.getDeclaredMethod("getCallerClass");
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                method = null;
+            }
+            getCallerClassReflectionMethod = method;
+            if (getCallerClassReflectionMethod == null) {
+                Class<?> stackWalkerClass;
+                Class<?> stackWalkerOptionClass;
+                try {
+                    stackWalkerClass = Class.forName("java.lang.StackWalker");
+                    stackWalkerOptionClass = Class.forName("java.lang.StackWalker$Option");
+
+                } catch (ClassNotFoundException e) {
+                    stackWalkerClass = null;
+                    stackWalkerOptionClass = null;
+                }
+                if (stackWalkerClass != null) {
+                    Method _getInstanceStackWalkerMethod;
+                    Method _getCallerClassStackWalkerMethod;
+                    Object _retainClassReferenceOption;
+                    try {
+                        _getInstanceStackWalkerMethod = stackWalkerClass.getDeclaredMethod("getInstance", stackWalkerOptionClass);
+                        _getCallerClassStackWalkerMethod = stackWalkerClass.getDeclaredMethod("getCallerClass");
+                        Field field = stackWalkerOptionClass.getDeclaredField("RETAIN_CLASS_REFERENCE");
+                        _retainClassReferenceOption = field.get(null);
+
+                    } catch (NoSuchMethodException | NoSuchFieldException | IllegalAccessException e) {
+                        _getInstanceStackWalkerMethod = null;
+                        _getCallerClassStackWalkerMethod = null;
+                        _retainClassReferenceOption = null;
+                    }
+                    getInstanceStackWalkerMethod = _getInstanceStackWalkerMethod;
+                    getCallerClassStackWalkerMethod = _getCallerClassStackWalkerMethod;
+                    retainClassReferenceOption = _retainClassReferenceOption;
+                }
+                else {
+                    getInstanceStackWalkerMethod = null;
+                    getCallerClassStackWalkerMethod = null;
+                    retainClassReferenceOption = null;
+                }
+            }
+            else {
+                getInstanceStackWalkerMethod = null;
+                getCallerClassStackWalkerMethod = null;
+                retainClassReferenceOption = null;
+            }
         }
     }
 
@@ -228,8 +295,23 @@ public class JNAForeignProvider extends ForeignProvider {
     public long getSymbolAddress(String symbolName) {
         Objects.requireNonNull(symbolName);
         if (FindNativeMethodHolder.findNativeMethod != null) {
+            Class<?> clazz;
             try {
-                return (long) JNAUtil.invoke(Thread.currentThread().getContextClassLoader(), FindNativeMethodHolder.findNativeMethod, symbolName);
+                if (GetCallerClassHolder.getCallerClassReflectionMethod != null)
+                    clazz = (Class<?>) GetCallerClassHolder.getCallerClassReflectionMethod.invoke(null);
+                else if (GetCallerClassHolder.getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = GetCallerClassHolder.getInstanceStackWalkerMethod.invoke(
+                            null, GetCallerClassHolder.retainClassReferenceOption
+                    );
+                    clazz = (Class<?>) GetCallerClassHolder.getCallerClassStackWalkerMethod.invoke(stackWalker);
+                }
+                else clazz = null;
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                clazz = null;
+            }
+            ClassLoader classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
+            try {
+                return (long) JNAUtil.invoke(classLoader, FindNativeMethodHolder.findNativeMethod, symbolName);
             } catch (Throwable ignored) {
             }
         }
@@ -271,7 +353,7 @@ public class JNAForeignProvider extends ForeignProvider {
             public static native int FormatMessageW(int dwFlags, Pointer lpSource, int dwMessageId, int dwLanguageId, Pointer lpBuffer, int nSize, Pointer arguments);
             public static native Pointer LocalFree(Pointer hMem);
             static {
-                if (Platform.isWindows()) Native.register(Kernel32.class, "kernel32");
+                if (Platform.isWindows()) Native.register(Kernel32.class, Platform.isWindowsCE() ? "coredll" : "kernel32");
             }
             private static final ThreadLocal<Pointer> POINTER_THREAD_LOCAL = new ThreadLocal<Pointer>() {
                 @Override
@@ -322,25 +404,10 @@ public class JNAForeignProvider extends ForeignProvider {
         return new JNAFunctionHandle(address, firstVararg, returnType, parameterTypes, options);
     }
 
-    private static class DowncallHandler implements InvocationHandler {
-        private final Map<Method, JNAFunctionHandle> functionHandleMap;
-        private static void checkArgumentType(ForeignType type, Class<?> argumentType) {
-            Class<?> expectedType;
-            if (type == ScalarType.BOOLEAN) expectedType = boolean.class;
-            else if (type == ScalarType.UTF16) expectedType = char.class;
-            else if (type == ScalarType.INT8 || type == ScalarType.CHAR) expectedType = byte.class;
-            else if (type == ScalarType.INT16) expectedType = short.class;
-            else if (type == ScalarType.INT32 || type == ScalarType.WCHAR) expectedType = int.class;
-            else if (type == ScalarType.INT64 || type == ScalarType.SHORT || type == ScalarType.INT
-                    || type == ScalarType.LONG || type == ScalarType.SIZE || type == ScalarType.ADDRESS)
-                expectedType = long.class;
-            else if (type == ScalarType.FLOAT) expectedType = float.class;
-            else if (type == ScalarType.DOUBLE) expectedType = double.class;
-            else expectedType = MemoryHandle.class;
-            if (argumentType != expectedType) throw new IllegalArgumentException("Illegal mapping type; expected " + expectedType);
-        }
-        public DowncallHandler(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-            Map<Method, JNAFunctionHandle> functionHandleMap = new HashMap<>();
+    private static class NativeInvocationHandler implements InvocationHandler {
+        private final Map<Method, FunctionHandle> functionHandleMap;
+        public NativeInvocationHandler(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
+            Map<Method, FunctionHandle> functionHandleMap = new HashMap<>();
             for (Class<?> clazz : classes) {
                 for (Method method : clazz.getMethods()) {
                     String methodName = method.getName();
@@ -357,9 +424,9 @@ public class JNAForeignProvider extends ForeignProvider {
                         CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
                         boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                         for (int i = 0; i < parameterForeignTypes.length; i ++) {
-                            checkArgumentType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
+                            JNAUtil.checkArgumentType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
                         }
-                        JNAFunctionHandle functionHandle = new JNAFunctionHandle(address, firstVarargIndex, returnForeignType, parameterForeignTypes, callOptions);
+                        FunctionHandle functionHandle = new JNAFunctionHandle(address, firstVarargIndex, returnForeignType, parameterForeignTypes, callOptions);
                         functionHandleMap.put(method, functionHandle);
                     }
                 }
@@ -388,8 +455,24 @@ public class JNAForeignProvider extends ForeignProvider {
 
     @Override
     public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-        if (classLoader == null) classLoader = Thread.currentThread().getContextClassLoader();
-        return Proxy.newProxyInstance(classLoader, classes, new DowncallHandler(classes, callOptionVisitor));
+        if (classLoader == null) {
+            Class<?> clazz;
+            try {
+                if (GetCallerClassHolder.getCallerClassReflectionMethod != null)
+                    clazz = (Class<?>) GetCallerClassHolder.getCallerClassReflectionMethod.invoke(null);
+                else if (GetCallerClassHolder.getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = GetCallerClassHolder.getInstanceStackWalkerMethod.invoke(
+                            null, GetCallerClassHolder.retainClassReferenceOption
+                    );
+                    clazz = (Class<?>) GetCallerClassHolder.getCallerClassStackWalkerMethod.invoke(stackWalker);
+                }
+                else clazz = null;
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                clazz = null;
+            }
+            classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
+        }
+        return Proxy.newProxyInstance(classLoader, classes, new NativeInvocationHandler(classes, callOptionVisitor));
     }
 
     private static final class CallbackHolder implements Runnable {
@@ -403,7 +486,7 @@ public class JNAForeignProvider extends ForeignProvider {
         }
     }
 
-    private static Class<?> toClass(ForeignType type) {
+    private static Class<?> toNativeType(ForeignType type) {
         if (type == null) return void.class;
         else if (type.isCompound()) {
             long size = type.size();
@@ -426,11 +509,16 @@ public class JNAForeignProvider extends ForeignProvider {
             throw new IllegalArgumentException(option + " not supported");
         }
         if (!JNAUtil.STDCALL_AVAILABLE) stdcall = false;
-        Class<?>[] nativeParameterTypes = new Class[parameterTypes.length];
+        Class<?>[] nativeParameterTypes = new Class<?>[parameterTypes.length];
         for (int i = 0; i < parameterTypes.length; i ++) {
-            nativeParameterTypes[i] = toClass(parameterTypes[i]);
+            nativeParameterTypes[i] = toNativeType(Objects.requireNonNull(parameterTypes[i]));
         }
-        Class<?> nativeReturnType = toClass(returnType);
+        Class<?> nativeReturnType = toNativeType(returnType);
+        Class<?>[] methodParameterTypes = method.getParameterTypes();
+        for (int i = 0; i < parameterTypes.length; i ++) {
+            JNAUtil.checkArgumentType(parameterTypes[i], methodParameterTypes[i]);
+        }
+        JNAUtil.checkArgumentType(returnType, method.getReturnType());
         CallbackProxy callbackHandler = new CallbackProxy() {
             @Override
             public Object callback(Object[] args) {
@@ -440,7 +528,7 @@ public class JNAForeignProvider extends ForeignProvider {
                         if (arg instanceof Pointer) args[i] = MemoryHandle.wrap(Pointer.nativeValue((Pointer) arg), parameterTypes[i].size());
                     }
                     Object result = JNAUtil.invoke(object, method, args);
-                    if (JNACompound.class.isAssignableFrom(nativeReturnType) && result == null) throw new NullPointerException();
+                    if (nativeReturnType != void.class && result == null) throw new NullPointerException();
                     if (result instanceof MemoryHandle) {
                         MemoryHandle memoryHandle = (MemoryHandle) result;
                         if (memoryHandle.isNil()) throw new NullPointerException();
@@ -464,7 +552,7 @@ public class JNAForeignProvider extends ForeignProvider {
                 return nativeReturnType;
             }
         };
-        CallbackProxy callback = stdcall ? new StdCallCallbackProxy() {
+        CallbackProxy callback = stdcall ? new JNAMappedTypes.StdCallCallbackProxy() {
             @Override
             public Object callback(Object[] args) {
                 return callbackHandler.callback(args);
@@ -478,7 +566,8 @@ public class JNAForeignProvider extends ForeignProvider {
                 return callbackHandler.getReturnType();
             }
         } : callbackHandler;
-        Cleaner.getCleaner().register(Modifier.isStatic(method.getModifiers()) ? method.getDeclaringClass() : object, new CallbackHolder(callback));
+        Cleaner.getCleaner().register(Modifier.isStatic(method.getModifiers()) ? method.getDeclaringClass() : Objects.requireNonNull(object),
+                new CallbackHolder(callback));
         return Pointer.nativeValue(CallbackReference.getFunctionPointer(callback));
     }
 

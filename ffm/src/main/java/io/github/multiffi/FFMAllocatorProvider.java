@@ -217,7 +217,7 @@ public class FFMAllocatorProvider extends AllocatorProvider {
         long bArrayBaseOffset = FFMUtil.UnsafeHolder.UNSAFE.arrayBaseOffset(aArray.getClass());
         for (long i = 0; i < size; i ++) {
             int cmp = Byte.compareUnsigned(FFMUtil.UnsafeHolder.UNSAFE.getByte(aArray, aArrayBaseOffset + aArrayOffset + i),
-                    FFMUtil.UnsafeHolder.UNSAFE.getByte(bArrayBaseOffset + bArrayOffset + i));
+                    FFMUtil.UnsafeHolder.UNSAFE.getByte(bArray, bArrayBaseOffset + bArrayOffset + i));
             if (cmp != 0) return cmp;
         }
         return 0;

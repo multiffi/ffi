@@ -7,7 +7,7 @@ public final class ScalarType extends ForeignType {
      */
     public static final ScalarType BOOLEAN = new ScalarType(boolean.class, 1);
     /**
-     * Java {@code char}; Windows {@code wchar_t} {@code WCHAR}
+     * Java {@code char}; Windows {@code WCHAR}
      */
     public static final ScalarType UTF16 = new ScalarType(char.class, 2);
     /**

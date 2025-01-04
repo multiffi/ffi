@@ -1,10 +1,12 @@
 package io.github.multiffi;
 
-import com.sun.jna.Function;
-import com.sun.jna.JNAAccessor;
-import com.sun.jna.Platform;
-import com.sun.jna.Pointer;
-import com.sun.jna.Structure;
+import com.kenai.jffi.Array;
+import com.kenai.jffi.MemoryIO;
+import com.kenai.jffi.PageManager;
+import com.kenai.jffi.Type;
+import jnr.ffi.Platform;
+import jnr.ffi.Runtime;
+import multiffi.Foreign;
 import multiffi.ForeignType;
 import multiffi.MemoryHandle;
 import multiffi.ScalarType;
@@ -15,22 +17,39 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 @SuppressWarnings({"deprecation", "removal"})
-final class JNAUtil {
+final class JNRUtil {
 
-    private JNAUtil() {
+    private JNRUtil() {
         throw new AssertionError("No io.github.multiffi.JNAUtil instances for you!");
     }
 
-    public static final boolean STDCALL_AVAILABLE = Platform.isWindows() && !Platform.isWindowsCE() && !Platform.is64Bit();
+    public static final Platform PLATFORM = Platform.getNativePlatform();
+    public static final boolean STDCALL_AVAILABLE = PLATFORM.getOS() == Platform.OS.WINDOWS
+            && PLATFORM.is32Bit() && !PLATFORM.getOSName().startsWith("Windows CE");
     public static final boolean IS_BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
+    public static final int WCHAR_SIZE = PLATFORM.getOS() == Platform.OS.WINDOWS ? 2 : 4;
+
+    public static boolean getBooleanProperty(String propertyName, boolean defaultValue) {
+        try {
+            return Boolean.valueOf(System.getProperty(propertyName, Boolean.valueOf(defaultValue).toString()));
+        } catch (SecurityException se) {
+            return defaultValue;
+        }
+    }
 
     public static final class UnsafeHolder {
         private UnsafeHolder() {
             throw new UnsupportedOperationException();
         }
+        public static final Runtime RUNTIME = Runtime.getSystemRuntime();
+        public static final MemoryIO MEMORY_IO = MemoryIO.getInstance();
+        public static final PageManager PAGE_MANAGER = PageManager.getInstance();
         public static final Unsafe UNSAFE;
         public static final Object IMPL_LOOKUP;
         public static final Method unreflectMethod;
@@ -106,78 +125,51 @@ final class JNAUtil {
         };
     }
 
-    public static String mapLibraryName(String libraryName) {
-        if (Platform.isMac()) {
-            if (libraryName.startsWith("lib") && (libraryName.endsWith(".dylib") || libraryName.endsWith(".jnilib"))) {
-                return libraryName;
-            }
-            String name = System.mapLibraryName(libraryName);
-            // On MacOSX, System.mapLibraryName() returns the .jnilib extension
-            // (the suffix for JNI libraries); ordinarily shared libraries have
-            // a .dylib suffix
-            if (name.endsWith(".jnilib")) return name.substring(0, name.lastIndexOf(".jnilib")) + ".dylib";
-            else return name;
+    public static final class InvokerHolder {
+        private InvokerHolder() {
+            throw new UnsupportedOperationException();
         }
-        else if (Platform.isAIX()) {    // can be libx.a, libx.a(shr.o), libx.a(shr_64.o), libx.so
-            if (isVersionedName(libraryName)
-                    || (libraryName.startsWith("lib") && (libraryName.endsWith(".so") || libraryName.endsWith(".a") || libraryName.endsWith(".a(shr.o)") || libraryName.endsWith(".a(shr_64.o)")))) {
-                // A specific version was requested - use as is for search
-                return libraryName;
-            }
-        }
-        else if (Platform.isWindows()) {
-            if (libraryName.endsWith(".drv") || libraryName.endsWith(".dll") || libraryName.endsWith(".ocx"))
-                return libraryName;
-        }
-        else /* if (Platform.isLinux() || Platform.isFreeBSD()) */ {
-            if (isVersionedName(libraryName) || libraryName.endsWith(".so")) {
-                // A specific version was requested - use as is for search
-                return libraryName;
-            }
-        }
-        String mappedName = System.mapLibraryName(libraryName);
-        if (Platform.isAIX() && mappedName.endsWith(".so")) return mappedName.replaceAll(".so$", ".a");
-        else return mappedName;
+        public static final List<JNRInvoker> FAST_INVOKERS = Collections.unmodifiableList(Arrays.asList(
+                JNRInvoker.FastInt.I0, JNRInvoker.FastInt.I1, JNRInvoker.FastInt.I2, JNRInvoker.FastInt.I3,
+                JNRInvoker.FastInt.I4, JNRInvoker.FastInt.I5, JNRInvoker.FastInt.I6,
+                JNRInvoker.FastLong.L0, JNRInvoker.FastLong.L1, JNRInvoker.FastLong.L2, JNRInvoker.FastLong.L3,
+                JNRInvoker.FastLong.L4, JNRInvoker.FastLong.L5, JNRInvoker.FastLong.L6,
+                JNRInvoker.FastNumeric.N0, JNRInvoker.FastNumeric.N1, JNRInvoker.FastNumeric.N2, JNRInvoker.FastNumeric.N3,
+                JNRInvoker.FastNumeric.N4, JNRInvoker.FastNumeric.N5, JNRInvoker.FastNumeric.N6
+        ));
     }
 
-    private static boolean isVersionedName(String libraryName) {
-        if (libraryName.startsWith("lib")) {
-            int so = libraryName.lastIndexOf(".so.");
-            if (so != -1 && so + 4 < libraryName.length()) {
-                for (int i = so + 4; i < libraryName.length(); i++) {
-                    char ch = libraryName.charAt(i);
-                    if (!Character.isDigit(ch) && ch != '.') return false;
-                }
-                return true;
-            }
+    public static Type toFFIType(ForeignType foreignType) {
+        if (foreignType == null) return Type.VOID;
+        else if (foreignType == ScalarType.BOOLEAN) return Type.UINT8;
+        else if (foreignType == ScalarType.INT8) return Type.SINT8;
+        else if (foreignType == ScalarType.UTF16 || (foreignType == ScalarType.WCHAR && Foreign.wcharSize() == 2L)) return Type.UINT16;
+        else if (foreignType == ScalarType.INT16) return Type.SINT16;
+        else if (foreignType == ScalarType.INT32
+                || (foreignType == ScalarType.SIZE && Foreign.addressSize() == 4L)
+                || (foreignType == ScalarType.WCHAR && Foreign.wcharSize() == 4L)) return Type.SINT32;
+        else if (foreignType == ScalarType.INT64 || (foreignType == ScalarType.SIZE && Foreign.addressSize() == 8L)) return Type.SINT64;
+        else if (foreignType == ScalarType.CHAR) return Type.SCHAR;
+        else if (foreignType == ScalarType.SHORT) return Type.SSHORT;
+        else if (foreignType == ScalarType.INT) return Type.SINT;
+        else if (foreignType == ScalarType.LONG) return Type.SLONG;
+        else if (foreignType == ScalarType.FLOAT) return Type.FLOAT;
+        else if (foreignType == ScalarType.DOUBLE) return Type.DOUBLE;
+        else if (foreignType == ScalarType.ADDRESS) return Type.POINTER;
+        else {
+            long size = foreignType.size();
+            if (size < 0 || size > (Integer.MAX_VALUE - 8)) throw new IndexOutOfBoundsException("Index out of range: " + Long.toUnsignedString(size));
+            int length = (int) size;
+            return Array.newArray(Type.SINT8, length);
         }
-        return false;
     }
 
-    public static Object invoke(Object returnType, Function function, long address, int callFlags, Object... args) {
-        if (returnType == null || returnType == void.class || returnType == Void.class) {
-            JNAAccessor.invokeVoid(function, address, callFlags, args);
-            return null;
+    public static Type[] toFFITypes(ForeignType[] foreignTypes) {
+        Type[] types = new Type[foreignTypes.length];
+        for (int i = 0; i < foreignTypes.length; i ++) {
+            types[i] = toFFIType(Objects.requireNonNull(foreignTypes[i]));
         }
-        else if (returnType == boolean.class || returnType == Boolean.class)
-            return JNAAccessor.invokeInt(function, address, callFlags, args) != 0;
-        else if (returnType == byte.class || returnType == Byte.class)
-            return (byte) JNAAccessor.invokeInt(function, address, callFlags, args);
-        else if (returnType == short.class || returnType == Short.class)
-            return (short) JNAAccessor.invokeInt(function, address, callFlags, args);
-        else if (returnType == int.class || returnType == Integer.class)
-            return JNAAccessor.invokeInt(function, address, callFlags, args);
-        else if (returnType == long.class || returnType == Long.class)
-            return JNAAccessor.invokeLong(function, address, callFlags, args);
-        else if (returnType == float.class || returnType == Float.class)
-            return JNAAccessor.invokeFloat(function, address, callFlags, args);
-        else if (returnType == double.class || returnType == Double.class)
-            return JNAAccessor.invokeDouble(function, address, callFlags, args);
-        else if (returnType == char.class || returnType == Character.class)
-            return (char) JNAAccessor.invokeInt(function, address, callFlags, args);
-        else if (returnType == Pointer.class)
-            return JNAAccessor.invokePointer(function, address, callFlags, args);
-        else return JNAAccessor.invokeStructure((Structure) returnType, function, address, callFlags, args);
+        return types;
     }
 
     public static void checkArgumentType(ForeignType type, Class<?> argumentType) {

@@ -1,7 +1,5 @@
 package io.github.multiffi;
 
-import com.sun.jna.Native;
-import com.sun.jna.Pointer;
 import multiffi.spi.BufferProvider;
 import sun.misc.Unsafe;
 
@@ -17,16 +15,16 @@ import java.nio.LongBuffer;
 import java.nio.ShortBuffer;
 
 @SuppressWarnings({"deprecation", "removal"})
-public class JNABufferProvider extends BufferProvider {
+public class JNRBufferProvider extends BufferProvider {
 
     @Override
     public ByteBuffer wrapBytes(long address, int capacity) {
-        return new Pointer(address).getByteBuffer(0, capacity);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.newDirectByteBuffer(address, capacity);
     }
 
     @Override
     public ByteBuffer wrapBytes(long address) {
-        return new Pointer(address).getByteBuffer(0, Integer.MAX_VALUE);
+        return JNRUtil.UnsafeHolder.MEMORY_IO.newDirectByteBuffer(address, Integer.MAX_VALUE);
     }
 
     private static final class BufferMethodHolder {
@@ -69,8 +67,8 @@ public class JNABufferProvider extends BufferProvider {
             if (BufferMethodHolder.baseMethod == null) {
                 if (isByteBuffer(buffer)) buffer = getByteBuffer(buffer);
                 try {
-                    return JNAUtil.UnsafeHolder.UNSAFE.getObject(buffer,
-                            JNAUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getField("hb")));
+                    return JNRUtil.UnsafeHolder.UNSAFE.getObject(buffer,
+                            JNRUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getField("hb")));
                 } catch (RuntimeException | Error e) {
                     throw e;
                 } catch (Throwable e) {
@@ -79,7 +77,7 @@ public class JNABufferProvider extends BufferProvider {
             }
             else {
                 try {
-                    return JNAUtil.invoke(buffer, BufferMethodHolder.baseMethod);
+                    return JNRUtil.invoke(buffer, BufferMethodHolder.baseMethod);
                 } catch (RuntimeException | Error e) {
                     throw e;
                 } catch (Throwable e) {
@@ -95,18 +93,18 @@ public class JNABufferProvider extends BufferProvider {
         if (buffer.isDirect()) return 0;
         else if (buffer.isReadOnly()) {
             try {
-                return JNAUtil.UnsafeHolder.UNSAFE.getInt(buffer,
-                        JNAUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
+                return JNRUtil.UnsafeHolder.UNSAFE.getInt(buffer,
+                        JNRUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
             } catch (NoSuchFieldException e) {
                 throw new IllegalStateException("Unexpected exception");
             }
         }
-        else return buffer.arrayOffset() * JNAUtil.UnsafeHolder.UNSAFE.arrayIndexScale(buffer.array().getClass());
+        else return buffer.arrayOffset() * JNRUtil.UnsafeHolder.UNSAFE.arrayIndexScale(buffer.array().getClass());
     }
 
     @Override
     public long address(Buffer buffer) {
-        return buffer.isDirect() ? Pointer.nativeValue(Native.getDirectBufferPointer(buffer)) : 0;
+        return buffer.isDirect() ? JNRUtil.UnsafeHolder.MEMORY_IO.getDirectBufferAddress(buffer) : 0;
     }
 
     @Override
@@ -119,8 +117,8 @@ public class JNABufferProvider extends BufferProvider {
         if (buffer instanceof ByteBuffer) return (ByteBuffer) buffer;
         else if (buffer != null && buffer.getClass().getSimpleName().startsWith("ByteBufferAs")) {
             try {
-                return (ByteBuffer) JNAUtil.UnsafeHolder.UNSAFE.getObject(buffer,
-                        JNAUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
+                return (ByteBuffer) JNRUtil.UnsafeHolder.UNSAFE.getObject(buffer,
+                        JNRUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
             } catch (NoSuchFieldException | ClassCastException e) {
                 throw new IllegalStateException("Unexpected exception");
             }
@@ -149,7 +147,7 @@ public class JNABufferProvider extends BufferProvider {
             if (!buffer.isDirect()) throw new IllegalArgumentException("buffer is non-direct");
             if (attachmentOf(buffer) != null) throw new IllegalArgumentException("duplicate or slice");
             try {
-                Object cleaner = JNAUtil.invoke(buffer, buffer.getClass().getMethod("cleaner"));
+                Object cleaner = JNRUtil.invoke(buffer, buffer.getClass().getMethod("cleaner"));
                 cleaner.getClass().getMethod("clean").invoke(cleaner);
             } catch (RuntimeException | Error e) {
                 throw e;
@@ -159,7 +157,7 @@ public class JNABufferProvider extends BufferProvider {
         }
         else {
             try {
-                InvokeCleanerMethodHolder.invokeCleanerMethod.invoke(JNAUtil.UnsafeHolder.UNSAFE, buffer);
+                InvokeCleanerMethodHolder.invokeCleanerMethod.invoke(JNRUtil.UnsafeHolder.UNSAFE, buffer);
             } catch (IllegalAccessException e) {
                 throw new IllegalStateException("Unexpected exception");
             } catch (InvocationTargetException e) {
@@ -182,7 +180,7 @@ public class JNABufferProvider extends BufferProvider {
         if (buffer == null || !buffer.isDirect()) return null;
         else {
             try {
-                return (T) JNAUtil.invoke(buffer, buffer.getClass().getMethod("attachment"));
+                return (T) JNRUtil.invoke(buffer, buffer.getClass().getMethod("attachment"));
             } catch (NoSuchMethodException | ClassCastException | IllegalAccessException e) {
                 throw new IllegalStateException("Unexpected exception");
             } catch (RuntimeException | Error e) {
@@ -208,7 +206,7 @@ public class JNABufferProvider extends BufferProvider {
                 throw new IndexOutOfBoundsException(String.format("Range [%s, %<s + %s) out of bounds for length %s", index, length, limit));
             limit(buffer, index + length).position(index);
             try {
-                return (T) JNAUtil.invoke(buffer, buffer.getClass().getMethod("slice"));
+                return (T) JNRUtil.invoke(buffer, buffer.getClass().getMethod("slice"));
             } catch (NoSuchMethodException | ClassCastException e) {
                 throw new IllegalArgumentException("Unsupported buffer");
             } catch (RuntimeException | Error e) {
@@ -219,7 +217,7 @@ public class JNABufferProvider extends BufferProvider {
         }
         else {
             try {
-                return (T) JNAUtil.invoke(buffer, BufferMethodHolder.sliceMethod, index, length);
+                return (T) JNRUtil.invoke(buffer, BufferMethodHolder.sliceMethod, index, length);
             } catch (ClassCastException | IllegalAccessException e) {
                 throw new IllegalStateException("Unexpected exception");
             } catch (RuntimeException | Error e) {
@@ -248,7 +246,7 @@ public class JNABufferProvider extends BufferProvider {
             else if (buffer instanceof DoubleBuffer) return (T) ((DoubleBuffer) buffer).duplicate();
             else {
                 try {
-                    return (T) JNAUtil.invoke(buffer, buffer.getClass().getMethod("duplicate"));
+                    return (T) JNRUtil.invoke(buffer, buffer.getClass().getMethod("duplicate"));
                 } catch (NoSuchMethodException | ClassCastException e) {
                     throw new IllegalArgumentException("Unsupported buffer");
                 } catch (RuntimeException | Error e) {
@@ -260,7 +258,7 @@ public class JNABufferProvider extends BufferProvider {
         }
         else {
             try {
-                return (T) JNAUtil.invoke(buffer, BufferMethodHolder.duplicateMethod);
+                return (T) JNRUtil.invoke(buffer, BufferMethodHolder.duplicateMethod);
             } catch (ClassCastException e) {
                 throw new IllegalStateException("Unexpected exception");
             } catch (RuntimeException | Error e) {

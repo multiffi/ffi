@@ -86,14 +86,30 @@ public abstract class JNACompound extends Structure implements Structure.ByValue
             if (memoryHandle.isDirect()) return new Bytes(new Pointer(memoryHandle.address()), length);
             else {
                 Object array = memoryHandle.array();
-                if (array instanceof byte[]) return new Bytes((byte[]) array);
-                else if (array instanceof char[]) return new Chars((char[]) array);
-                else if (array instanceof short[]) return new Shorts((short[]) array);
-                else if (array instanceof int[]) return new Ints((int[]) array);
-                else if (array instanceof long[]) return new Longs((long[]) array);
-                else if (array instanceof float[]) return new Floats((float[]) array);
-                else if (array instanceof double[]) return new Doubles((double[]) array);
-                else throw new IllegalStateException("Unexpected exception");
+                if (memoryHandle.arrayOffset() == 0L) {
+                    if (array instanceof byte[]) return new Bytes((byte[]) array);
+                    else if (array instanceof char[]) return new Chars((char[]) array);
+                    else if (array instanceof short[]) return new Shorts((short[]) array);
+                    else if (array instanceof int[]) return new Ints((int[]) array);
+                    else if (array instanceof long[]) return new Longs((long[]) array);
+                    else if (array instanceof float[]) return new Floats((float[]) array);
+                    else if (array instanceof double[]) return new Doubles((double[]) array);
+                    else throw new IllegalStateException("Unexpected exception");
+                }
+                else {
+                    return new Bytes(new byte[length]) {
+                        @Override
+                        public void autoWrite() {
+                            memoryHandle.getInt8Array(0, array);
+                            super.autoWrite();
+                        }
+                        @Override
+                        public void autoRead() {
+                            super.autoRead();
+                            memoryHandle.setInt8Array(0, array);
+                        }
+                    };
+                }
             }
         }
     }

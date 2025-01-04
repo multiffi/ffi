@@ -11,6 +11,7 @@ import multiffi.MemoryHandle;
 import multiffi.ScalarType;
 import multiffi.StandardCallOption;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -142,7 +143,7 @@ public class JNAFunctionHandle extends FunctionHandle {
 
     @Override
     public long invokeAddress(Object... args) {
-        return Pointer.nativeValue((Pointer) invoke(args));
+        return ((Number) invoke(args)).longValue();
     }
 
     @Override
@@ -152,9 +153,11 @@ public class JNAFunctionHandle extends FunctionHandle {
 
     private static Object checkArgument(ForeignType type, Object argument) {
         if (type == ScalarType.BOOLEAN) return (Boolean) argument;
-        else if (type == ScalarType.UTF16 || (type == ScalarType.WCHAR && Foreign.wcharSize() == 2)) return (Character) argument;
+        else if (type == ScalarType.UTF16) return (Character) argument;
         else if (type == ScalarType.INT8 || type == ScalarType.CHAR) return ((Number) argument).byteValue();
-        else if (type == ScalarType.INT16 || (type == ScalarType.SHORT && Foreign.shortSize() == 2)) return ((Number) argument).shortValue();
+        else if (type == ScalarType.INT16
+                || (type == ScalarType.SHORT && Foreign.shortSize() == 2) || (type == ScalarType.WCHAR && Foreign.wcharSize() == 2))
+            return ((Number) argument).shortValue();
         else if (type == ScalarType.INT32
                 || (type == ScalarType.INT && Foreign.intSize() == 4)
                 || (type == ScalarType.LONG && Foreign.longSize() == 4)
@@ -181,6 +184,14 @@ public class JNAFunctionHandle extends FunctionHandle {
     @Override
     public Object invoke(Object... args) {
         if (args == null) args = EMPTY_ARGUMENTS;
+        if (dyncall) {
+            Object varargs = args[args.length - 1];
+            int varargsLength = Array.getLength(varargs);
+            Object[] arguments = new Object[args.length - 1 + varargsLength];
+            System.arraycopy(args, 0, arguments, 0, args.length - 1);
+            System.arraycopy(varargs, 0, arguments, args.length - 1, varargsLength);
+            args = arguments;
+        }
         Object result;
         try {
             if (returnType == null) {
