@@ -3,6 +3,7 @@ package io.github.multiffi;
 import com.kenai.jffi.CallingConvention;
 import com.kenai.jffi.Closure;
 import com.kenai.jffi.ClosureManager;
+import com.kenai.jffi.Type;
 import com.kenai.jffi.internal.Cleaner;
 import jnr.ffi.JNRAccessor;
 import jnr.ffi.Memory;
@@ -290,7 +291,7 @@ public class JNRForeignProvider extends ForeignProvider {
                         CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
                         boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                         for (int i = 0; i < parameterForeignTypes.length; i ++) {
-                            JNRUtil.checkArgumentType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
+                            JNRUtil.checkType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
                         }
                         FunctionHandle functionHandle = new JNRFunctionHandle(address, firstVarargIndex, returnForeignType, parameterForeignTypes, callOptions);
                         functionHandleMap.put(method, functionHandle);
@@ -415,7 +416,13 @@ public class JNRForeignProvider extends ForeignProvider {
             throw new IllegalArgumentException(option + " not supported");
         }
         if (!JNRUtil.STDCALL_AVAILABLE) stdcall = false;
-        Closure.Handle handle = ClosureManager.getInstance().newClosure(buffer -> {
+        Type returnFFIType = JNRUtil.toFFIType(returnType);
+        Type[] parameterFFITypes = JNRUtil.toFFITypes(parameterTypes);
+        Class<?>[] methodParameterTypes = method.getParameterTypes();
+        for (int i = 0; i < methodParameterTypes.length; i ++) {
+            JNRUtil.checkType(parameterTypes[i], methodParameterTypes[i]);
+        }
+        Closure closure = buffer -> {
             Object[] args = new Object[parameterTypes.length];
             int index = 0;
             for (int i = 0; i < parameterTypes.length; i ++) {
@@ -484,7 +491,9 @@ public class JNRForeignProvider extends ForeignProvider {
                     buffer.setStructReturn(array, 0);
                 }
             }
-        }, JNRUtil.toFFIType(returnType), JNRUtil.toFFITypes(parameterTypes), stdcall ? CallingConvention.STDCALL : CallingConvention.DEFAULT);
+        };
+        Closure.Handle handle = ClosureManager.getInstance().newClosure(closure,
+                returnFFIType, parameterFFITypes, stdcall ? CallingConvention.STDCALL : CallingConvention.DEFAULT);
         handle.setAutoRelease(false);
         Cleaner.register(isStatic ? method.getDeclaringClass() : object, handle::dispose);
         return handle.getAddress();

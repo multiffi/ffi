@@ -14,7 +14,6 @@ import multiffi.CallOptionVisitor;
 import multiffi.ForeignType;
 import multiffi.FunctionHandle;
 import multiffi.MemoryHandle;
-import multiffi.ScalarType;
 import multiffi.StandardCallOption;
 import multiffi.UnsatisfiedLinkException;
 import multiffi.spi.ForeignProvider;
@@ -424,7 +423,7 @@ public class JNAForeignProvider extends ForeignProvider {
                         CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
                         boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                         for (int i = 0; i < parameterForeignTypes.length; i ++) {
-                            JNAUtil.checkArgumentType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
+                            JNAUtil.checkType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
                         }
                         FunctionHandle functionHandle = new JNAFunctionHandle(address, firstVarargIndex, returnForeignType, parameterForeignTypes, callOptions);
                         functionHandleMap.put(method, functionHandle);
@@ -516,9 +515,9 @@ public class JNAForeignProvider extends ForeignProvider {
         Class<?> nativeReturnType = toNativeType(returnType);
         Class<?>[] methodParameterTypes = method.getParameterTypes();
         for (int i = 0; i < parameterTypes.length; i ++) {
-            JNAUtil.checkArgumentType(parameterTypes[i], methodParameterTypes[i]);
+            JNAUtil.checkType(parameterTypes[i], methodParameterTypes[i]);
         }
-        JNAUtil.checkArgumentType(returnType, method.getReturnType());
+        JNAUtil.checkType(returnType, method.getReturnType());
         CallbackProxy callbackHandler = new CallbackProxy() {
             @Override
             public Object callback(Object[] args) {

@@ -180,20 +180,20 @@ final class JNAUtil {
         else return JNAAccessor.invokeStructure((Structure) returnType, function, address, callFlags, args);
     }
 
-    public static void checkArgumentType(ForeignType type, Class<?> argumentType) {
-        Class<?> expectedType;
-        if (type == ScalarType.BOOLEAN) expectedType = boolean.class;
-        else if (type == ScalarType.UTF16) expectedType = char.class;
-        else if (type == ScalarType.INT8 || type == ScalarType.CHAR) expectedType = byte.class;
-        else if (type == ScalarType.INT16) expectedType = short.class;
-        else if (type == ScalarType.INT32 || type == ScalarType.WCHAR) expectedType = int.class;
+    public static void checkType(ForeignType type, Class<?> clazz) {
+        Class<?> expected;
+        if (type == ScalarType.BOOLEAN) expected = boolean.class;
+        else if (type == ScalarType.UTF16) expected = char.class;
+        else if (type == ScalarType.INT8 || type == ScalarType.CHAR) expected = byte.class;
+        else if (type == ScalarType.INT16) expected = short.class;
+        else if (type == ScalarType.INT32 || type == ScalarType.WCHAR) expected = int.class;
         else if (type == ScalarType.INT64 || type == ScalarType.SHORT || type == ScalarType.INT
                 || type == ScalarType.LONG || type == ScalarType.SIZE || type == ScalarType.ADDRESS)
-            expectedType = long.class;
-        else if (type == ScalarType.FLOAT) expectedType = float.class;
-        else if (type == ScalarType.DOUBLE) expectedType = double.class;
-        else expectedType = MemoryHandle.class;
-        if (argumentType != expectedType) throw new IllegalArgumentException("Illegal mapping type; expected " + expectedType);
+            expected = long.class;
+        else if (type == ScalarType.FLOAT) expected = float.class;
+        else if (type == ScalarType.DOUBLE) expected = double.class;
+        else expected = MemoryHandle.class;
+        if (clazz != expected) throw new IllegalArgumentException("Illegal mapping type; expected " + expected);
     }
 
 }
