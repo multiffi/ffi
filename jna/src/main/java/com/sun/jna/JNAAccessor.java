@@ -3,7 +3,7 @@ package com.sun.jna;
 public final class JNAAccessor {
 
     private JNAAccessor() {
-        throw new AssertionError("No io.github.multiffi.JNAAccessor instances for you!");
+        throw new AssertionError("No io.github.multiffi.ffi.JNAAccessor instances for you!");
     }
 
     public static int invokeInt(Function function, long address, int callFlags, Object... args) {
