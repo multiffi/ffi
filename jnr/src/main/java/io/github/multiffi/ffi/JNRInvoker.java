@@ -371,7 +371,8 @@ public abstract class JNRInvoker {
                 else {
                     MemoryHandle memoryHandle = (MemoryHandle) arg;
                     if (memoryHandle.isDirect()) heapInvocationBuffer.putStruct(memoryHandle.address());
-                    else if (memoryHandle.array() instanceof byte[] && memoryHandle.arrayOffset() >= 0 && memoryHandle.arrayOffset() < (Integer.MAX_VALUE - 8))
+                    else if (memoryHandle.array() instanceof byte[] && memoryHandle.arrayOffset() >= 0
+                            && memoryHandle.arrayOffset() < (Integer.MAX_VALUE - 8))
                         heapInvocationBuffer.putStruct((byte[]) memoryHandle.array(), (int) memoryHandle.arrayOffset());
                     else {
                         byte[] array = new byte[(int) parameterType.size()];
@@ -388,4 +389,23 @@ public abstract class JNRInvoker {
     public abstract boolean isSupported(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, CallingConvention convention);
     public abstract Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args);
 
+    public static JNRInvoker getSupportedInvoker(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, CallingConvention convention) {
+        for (JNRInvoker invoker : JNRUtil.InvokerHolder.FAST_INVOKERS) {
+            if (invoker.isSupported(context, returnType, parameterTypes, convention)) return invoker;
+        }
+        if (returnType == null) return JNRInvoker.Buffer.VOID;
+        else if (returnType == ScalarType.INT8 || returnType == ScalarType.CHAR) return JNRInvoker.Buffer.BYTE;
+        else if (returnType == ScalarType.INT16 || returnType == ScalarType.SHORT) return JNRInvoker.Buffer.SHORT;
+        else if (returnType == ScalarType.INT32 || returnType == ScalarType.INT) return JNRInvoker.Buffer.INT;
+        else if (returnType == ScalarType.INT64) return JNRInvoker.Buffer.LONG;
+        else if (returnType == ScalarType.FLOAT) return JNRInvoker.Buffer.FLOAT;
+        else if (returnType == ScalarType.DOUBLE) return JNRInvoker.Buffer.DOUBLE;
+        else if (returnType == ScalarType.LONG) return JNRInvoker.Buffer.NATIVE_LONG;
+        else if (returnType == ScalarType.WCHAR) return JNRInvoker.Buffer.WCHAR;
+        else if (returnType == ScalarType.ADDRESS || returnType == ScalarType.SIZE) return JNRInvoker.Buffer.ADDRESS;
+        else if (returnType == ScalarType.BOOLEAN) return JNRInvoker.Buffer.BOOLEAN;
+        else if (returnType == ScalarType.UTF16) return JNRInvoker.Buffer.CHAR;
+        else return JNRInvoker.Buffer.STRUCT;
+    }
+    
 }

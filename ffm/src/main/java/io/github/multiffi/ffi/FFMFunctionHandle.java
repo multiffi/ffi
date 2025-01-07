@@ -206,7 +206,7 @@ public class FFMFunctionHandle extends FunctionHandle {
                     MemoryHandle result = (MemoryHandle) args[0];
                     try {
                         Object[] arguments = new Object[args.length + 1];
-                        arguments[0] = SegmentAllocator.slicingAllocator((MemorySegment) FFMMethodFilters.HANDLE_TO_SEGMENT.invokeExact(result));
+                        arguments[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result));
                         arguments[1] = FFMLastErrno.segment();
                         System.arraycopy(args, 1, arguments, 2, args.length - 1);
                         invoker.invoke(function, arguments);
@@ -223,7 +223,7 @@ public class FFMFunctionHandle extends FunctionHandle {
                     if (args.length != parameterTypeList.size()) throw new IndexOutOfBoundsException("Array length mismatch");
                     MemoryHandle result = (MemoryHandle) args[0];
                     try {
-                        args[0] = SegmentAllocator.slicingAllocator((MemorySegment) FFMMethodFilters.HANDLE_TO_SEGMENT.invokeExact(result));
+                        args[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result));
                         invoker.invoke(function, args);
                         return result;
                     } catch (ClassCastException | WrongMethodTypeException e) {
@@ -267,7 +267,7 @@ public class FFMFunctionHandle extends FunctionHandle {
         }
     }
 
-    private interface Invoker {
+    public interface Invoker {
         Object invoke(MethodHandle methodHandle, Object... args) throws Throwable;
     }
 
@@ -275,7 +275,7 @@ public class FFMFunctionHandle extends FunctionHandle {
 
     private static final String[] INVOKER_EXCEPTIONS = new String[] { "java/lang/Throwable" };
     private static final String[] INVOKER_INTERFACES = new String[] { "io/github/multiffi/ffi/FFMFunctionHandle$Invoker" };
-    private static Invoker getInvoker(int length) {
+    public static Invoker getInvoker(int length) {
         if (length > 255) throw new IllegalArgumentException("parameter limit exceeded: " + length);
         if (!INVOKERS.containsKey(length)) synchronized (INVOKERS) {
             if (!INVOKERS.containsKey(length)) {
@@ -283,7 +283,7 @@ public class FFMFunctionHandle extends FunctionHandle {
                 String proxyName = "io.github.multiffi.FFMFunctionHandle$Invoker$" + length;
                 String proxyInternalName = proxyName.replace('.', '/');
 
-                ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+                ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
 
                 classWriter.visit(Opcodes.V1_8, Opcodes.ACC_PRIVATE | Opcodes.ACC_SUPER,
                         proxyInternalName, null, "java/lang/Object", INVOKER_INTERFACES);
@@ -321,6 +321,8 @@ public class FFMFunctionHandle extends FunctionHandle {
                 invoke.visitInsn(Opcodes.ARETURN);
                 invoke.visitMaxs(0, 0);
                 invoke.visitEnd();
+
+                classWriter.visitEnd();
                 try {
                     INVOKERS.put(length, (Invoker) FFMUtil.UnsafeHolder.IMPL_LOOKUP
                             .findConstructor(FFMUtil.defineClass(classLoader, proxyName, classWriter.toByteArray()),

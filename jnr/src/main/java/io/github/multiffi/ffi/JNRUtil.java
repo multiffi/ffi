@@ -12,6 +12,7 @@ import multiffi.ffi.MemoryHandle;
 import multiffi.ffi.ScalarType;
 import sun.misc.Unsafe;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 @SuppressWarnings({"deprecation", "removal"})
-final class JNRUtil {
+public final class JNRUtil {
 
     private JNRUtil() {
         throw new AssertionError("No io.github.multiffi.ffi.JNAUtil instances for you!");
@@ -32,13 +33,14 @@ final class JNRUtil {
     public static final Platform PLATFORM = Platform.getNativePlatform();
     public static final boolean STDCALL_AVAILABLE = PLATFORM.getOS() == Platform.OS.WINDOWS
             && PLATFORM.is32Bit() && !PLATFORM.getOSName().startsWith("Windows CE");
+    public static final boolean ASM_AVAILABLE = PLATFORM.getOS() != Platform.OS.LINUX || !"dalvik".equalsIgnoreCase(System.getProperty("java.vm.name"));
     public static final boolean IS_BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
     public static final int WCHAR_SIZE = PLATFORM.getOS() == Platform.OS.WINDOWS ? 2 : 4;
 
     public static boolean getBooleanProperty(String propertyName, boolean defaultValue) {
         try {
-            return Boolean.valueOf(System.getProperty(propertyName, Boolean.valueOf(defaultValue).toString()));
-        } catch (SecurityException se) {
+            return Boolean.parseBoolean(System.getProperty(propertyName, Boolean.valueOf(defaultValue).toString()));
+        } catch (Throwable e) {
             return defaultValue;
         }
     }
@@ -53,6 +55,7 @@ final class JNRUtil {
         public static final Unsafe UNSAFE;
         public static final Object IMPL_LOOKUP;
         public static final Method unreflectMethod;
+        public static final Method unreflectConstructorMethod;
         public static final Method bindToMethod;
         public static final Method invokeWithArgumentsMethod;
         static {
@@ -65,6 +68,7 @@ final class JNRUtil {
             }
             Object _lookup;
             Method _unreflectMethod;
+            Method _unreflectConstructorMethod;
             Method _bindToMethod;
             Method _invokeWithArgumentsMethod;
             try {
@@ -72,17 +76,20 @@ final class JNRUtil {
                 Field field = lookupClass.getDeclaredField("IMPL_LOOKUP");
                 _lookup = UNSAFE.getObject(lookupClass, UNSAFE.staticFieldOffset(field));
                 _unreflectMethod = lookupClass.getDeclaredMethod("unreflect", Method.class);
+                _unreflectConstructorMethod = lookupClass.getDeclaredMethod("unreflectConstructor", Constructor.class);
                 Class<?> methodHandleClass = Class.forName("java.lang.invoke.MethodHandle");
                 _bindToMethod = methodHandleClass.getDeclaredMethod("bindTo", Object.class);
                 _invokeWithArgumentsMethod = methodHandleClass.getDeclaredMethod("invokeWithArguments", Object[].class);
             } catch (NoSuchFieldException | ClassNotFoundException | NoSuchMethodException e) {
                 _lookup = null;
                 _unreflectMethod = null;
+                _unreflectConstructorMethod = null;
                 _bindToMethod = null;
                 _invokeWithArgumentsMethod = null;
             }
             IMPL_LOOKUP = _lookup;
             unreflectMethod = _unreflectMethod;
+            unreflectConstructorMethod = _unreflectConstructorMethod;
             bindToMethod = _bindToMethod;
             invokeWithArgumentsMethod = _invokeWithArgumentsMethod;
         }
@@ -113,16 +120,28 @@ final class JNRUtil {
         }
     }
 
-    public static final class LastErrnoHolder {
-        private LastErrnoHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final ThreadLocal<Integer> ERRNO_THREAD_LOCAL = new ThreadLocal<Integer>() {
-            @Override
-            protected Integer initialValue() {
-                return 0;
+    @SuppressWarnings("unchecked")
+    public static <T> T newInstance(Constructor<T> constructor, Object... args) throws Throwable {
+        if (UnsafeHolder.IMPL_LOOKUP == null) {
+            constructor.setAccessible(true);
+            try {
+                return constructor.newInstance(args);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Unexpected exception");
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
             }
-        };
+        }
+        else {
+            try {
+                Object methodHandle = UnsafeHolder.unreflectConstructorMethod.invoke(UnsafeHolder.IMPL_LOOKUP, constructor);
+                return (T) UnsafeHolder.invokeWithArgumentsMethod.invoke(methodHandle, (Object) args);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Unexpected exception");
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
+            }
+        }
     }
 
     public static final class InvokerHolder {

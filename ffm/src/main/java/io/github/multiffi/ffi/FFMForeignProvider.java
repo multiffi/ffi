@@ -24,6 +24,7 @@ import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SegmentAllocator;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -32,7 +33,6 @@ import java.lang.invoke.MethodType;
 import java.lang.ref.Cleaner;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Parameter;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -479,23 +479,34 @@ public class FFMForeignProvider extends ForeignProvider {
                         null, null);
                 methodVisitor.visitCode();
                 if (dyncall) {
-                    ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method);
+                    ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
                     ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
                     boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                     Class<?>[] parameterTypes = method.getParameterTypes();
                     if (parameterTypes.length - 1 != parameterForeignTypes.length + (addReturnMemoryParameter ? 1 : 0))
                         throw new IndexOutOfBoundsException("Array length mismatch");
+                    if (!parameterTypes[parameterTypes.length - 1].isArray())
+                        throw new IllegalArgumentException("Last argument must be array as variadic arguments");
                     Class<?> returnType = method.getReturnType();
 
-                    classInit.visitIntInsn(Opcodes.SIPUSH, parameterForeignTypes.length);
+                    visitLdcInsn(classInit, parameterForeignTypes.length);
                     classInit.visitTypeInsn(Opcodes.ANEWARRAY, "multiffi/ffi/ForeignType");
                     classInit.visitVarInsn(Opcodes.ASTORE, 1);
                     for (int i = 0; i < parameterForeignTypes.length; i ++) {
                         ForeignType parameterForeignType = parameterForeignTypes[i];
                         Class<?> parameterType = parameterTypes[(addReturnMemoryParameter ? 1 : 0) + i];
+                        if (parameterForeignType.isCompound()) {
+                            classInit.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/ScalarType", "INT8", "Lmultiffi/ffi/ScalarType;");
+                            visitLdcInsn(classInit, parameterForeignType.size());
+                            classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "multiffi/ffi/CompoundType",
+                                    "ofArray", "(Lmultiffi/ffi/ForeignType;J)Lmultiffi/ffi/CompoundType;", false);
+                            classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                        }
                         classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                        classInit.visitIntInsn(Opcodes.SIPUSH, i);
-                        dumpForeignType(classInit, parameterType, parameterForeignType);
+                        visitLdcInsn(classInit, i);
+
+                        if (parameterForeignType.isCompound()) classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                        else dumpForeignType(classInit, parameterType, parameterForeignType);
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
 
@@ -503,41 +514,51 @@ public class FFMForeignProvider extends ForeignProvider {
                     if (critical) optionCount ++;
                     if (trivial) optionCount ++;
                     if (saveErrno) optionCount ++;
-                    classInit.visitIntInsn(Opcodes.BIPUSH, optionCount);
+                    visitLdcInsn(classInit, optionCount);
                     classInit.visitTypeInsn(Opcodes.ANEWARRAY, "multiffi/ffi/CallOption");
                     classInit.visitVarInsn(Opcodes.ASTORE, 2);
                     classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                    classInit.visitIntInsn(Opcodes.BIPUSH, 0);
+                    classInit.visitInsn(Opcodes.ICONST_0);
                     classInit.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/StandardCallOption",
                             "DYNCALL", "Lmultiffi/ffi/StandardCallOption;");
                     classInit.visitInsn(Opcodes.AASTORE);
                     int optionIndex = 1;
                     if (critical) {
                         classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                        classInit.visitIntInsn(Opcodes.BIPUSH, optionIndex ++);
+                        visitLdcInsn(classInit, optionIndex ++);
                         classInit.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/StandardCallOption",
                                 "CRITICAL", "Lmultiffi/ffi/StandardCallOption;");
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
                     if (trivial) {
                         classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                        classInit.visitIntInsn(Opcodes.BIPUSH, optionIndex ++);
+                        visitLdcInsn(classInit, optionIndex ++);
                         classInit.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/StandardCallOption",
                                 "TRIVIAL", "Lmultiffi/ffi/StandardCallOption;");
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
                     if (saveErrno) {
                         classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                        classInit.visitIntInsn(Opcodes.BIPUSH, optionIndex);
+                        visitLdcInsn(classInit, optionIndex);
                         classInit.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/StandardCallOption",
                                 "SAVE_ERRNO", "Lmultiffi/ffi/StandardCallOption;");
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
+                    if (returnForeignType != null && returnForeignType.isCompound()) {
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/ScalarType", "INT8", "Lmultiffi/ffi/ScalarType;");
+                        visitLdcInsn(classInit, returnForeignType.size());
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "multiffi/ffi/CompoundType",
+                                "ofArray", "(Lmultiffi/ffi/ForeignType;J)Lmultiffi/ffi/CompoundType;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 3);
+                    }
+
                     classInit.visitTypeInsn(Opcodes.NEW, "io/github/multiffi/ffi/FFMFunctionHandle");
                     classInit.visitInsn(Opcodes.DUP);
-                    classInit.visitLdcInsn(address);
-                    classInit.visitLdcInsn(firstVarArgIndex);
-                    dumpForeignType(classInit, returnType, returnForeignType);
+                    visitLdcInsn(classInit, address);
+                    visitLdcInsn(classInit, firstVarArgIndex);
+
+                    if (returnForeignType != null && returnForeignType.isCompound()) classInit.visitVarInsn(Opcodes.ALOAD, 3);
+                    else dumpForeignType(classInit, returnType, returnForeignType);
                     classInit.visitVarInsn(Opcodes.ALOAD, 1);
                     classInit.visitVarInsn(Opcodes.ALOAD, 2);
                     classInit.visitMethodInsn(Opcodes.INVOKESPECIAL, "io/github/multiffi/ffi/FFMFunctionHandle", "<init>",
@@ -549,12 +570,10 @@ public class FFMForeignProvider extends ForeignProvider {
                     for (Class<?> parameterType : parameterTypes) {
                         if (parameterType == long.class || parameterType == double.class) storeIndex ++;
                     }
-                    methodVisitor.visitIntInsn(Opcodes.BIPUSH, parameterTypes.length);
+                    visitLdcInsn(methodVisitor, parameterTypes.length);
                     methodVisitor.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
                     methodVisitor.visitVarInsn(Opcodes.ASTORE, storeIndex);
 
-                    if (!parameterTypes[parameterTypes.length - 1].isArray())
-                        throw new IllegalArgumentException("Last argument must be array as variadic arguments");
                     int index = 0;
                     for (int i = 0; i < parameterTypes.length; i ++) {
                         Class<?> parameterType = parameterTypes[i];
@@ -590,12 +609,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             }
                             methodVisitor.visitVarInsn(Opcodes.ASTORE, storeIndex + 1);
                             methodVisitor.visitVarInsn(Opcodes.ALOAD, storeIndex);
-                            methodVisitor.visitIntInsn(Opcodes.BIPUSH, i);
+                            visitLdcInsn(methodVisitor, i);
                             methodVisitor.visitVarInsn(Opcodes.ALOAD, storeIndex + 1);
                         }
                         else {
                             methodVisitor.visitVarInsn(Opcodes.ALOAD, storeIndex);
-                            methodVisitor.visitIntInsn(Opcodes.BIPUSH, i);
+                            visitLdcInsn(methodVisitor, i);
                             methodVisitor.visitVarInsn(Opcodes.ALOAD, 1 + index ++);
                         }
                         methodVisitor.visitInsn(Opcodes.AASTORE);
@@ -603,7 +622,10 @@ public class FFMForeignProvider extends ForeignProvider {
 
                     methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, proxyInternalName, methodFieldName, "Lmultiffi/ffi/FunctionHandle;");
                     methodVisitor.visitVarInsn(Opcodes.ALOAD, storeIndex);
-                    if (returnForeignType == ScalarType.BOOLEAN)
+                    if (returnForeignType == null)
+                        methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "multiffi/ffi/FunctionHandle", "invokeVoid",
+                                "([Ljava/lang/Object;)V", false);
+                    else if (returnForeignType == ScalarType.BOOLEAN)
                         methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "multiffi/ffi/FunctionHandle", "invokeBoolean",
                                 "([Ljava/lang/Object;)Z", false);
                     else if (returnForeignType == ScalarType.INT8)
@@ -652,42 +674,51 @@ public class FFMForeignProvider extends ForeignProvider {
                     methodVisitor.visitEnd();
                 }
                 else {
-                    int methodMaxLocals = method.getParameterCount() + 1;
-                    for (Class<?> parameterType : method.getParameterTypes()) {
+                    ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
+                    ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
+                    boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
+                    Class<?>[] parameterTypes = method.getParameterTypes();
+                    if (parameterTypes.length != parameterForeignTypes.length + (addReturnMemoryParameter ? 1 : 0))
+                        throw new IndexOutOfBoundsException("Array length mismatch");
+                    Class<?> returnType = method.getReturnType();
+
+                    int methodMaxLocals = parameterTypes.length + 1;
+                    for (Class<?> parameterType : parameterTypes) {
                         if (parameterType == long.class || parameterType == double.class) methodMaxLocals ++;
                     }
 
+                    if (addReturnMemoryParameter) {
+                        methodVisitor.visitVarInsn(Opcodes.ALOAD, 1);
+                        methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/multiffi/ffi/FFMMethodFilters",
+                                "handleToSegment", "(Lmultiffi/ffi/MemoryHandle;)Ljava/lang/foreign/MemorySegment;", false);
+                        methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/SegmentAllocator",
+                                "slicingAllocator", "(Ljava/lang/foreign/MemorySegment;)Ljava/lang/foreign/SegmentAllocator;", true);
+                        methodVisitor.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
                     if (saveErrno) {
                         methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, "io/github/multiffi/ffi/FFMLastErrno", "segment",
                                 "()Ljava/lang/foreign/MemorySegment;", false);
                         methodVisitor.visitVarInsn(Opcodes.ASTORE, methodMaxLocals);
                     }
                     methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, proxyInternalName, methodFieldName, "Ljava/lang/invoke/MethodHandle;");
+                    if (addReturnMemoryParameter) methodVisitor.visitVarInsn(Opcodes.ALOAD, 1);
                     if (saveErrno) methodVisitor.visitVarInsn(Opcodes.ALOAD, methodMaxLocals);
 
-                    classInit.visitLdcInsn(address);
+                    visitLdcInsn(classInit, address);
                     classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemorySegment", "ofAddress",
                             "(J)Ljava/lang/foreign/MemorySegment;", true);
                     classInit.visitVarInsn(Opcodes.ASTORE, 1);
 
-                    ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method);
-                    ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
-                    boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
-                    Parameter[] parameters = method.getParameters();
-                    if (parameters.length != parameterForeignTypes.length + (addReturnMemoryParameter ? 1 : 0))
-                        throw new IndexOutOfBoundsException("Array length mismatch");
-                    Class<?> returnType = method.getReturnType();
-                    classInit.visitIntInsn(Opcodes.SIPUSH, parameters.length);
-                    classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+                    visitLdcInsn(classInit, parameterForeignTypes.length);
+                    classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/foreign/MemoryLayout");
                     classInit.visitVarInsn(Opcodes.ASTORE, 2);
-                    int index = 0;
-                    for (int i = (addReturnMemoryParameter ? 1 : 0); i < parameters.length; i ++) {
+                    int index = addReturnMemoryParameter ? 1 : 0;
+                    for (int i = 0; i < parameterForeignTypes.length; i ++) {
                         ForeignType parameterForeignType = parameterForeignTypes[i];
-                        Class<?> parameterType = parameters[i].getType();
+                        Class<?> parameterType = parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)];
                         if (parameterForeignType.isCompound()) {
-                            if (!MemoryHandle.class.isAssignableFrom(parameterType))
-                                throw new IllegalArgumentException("Illegal mapping type; expected subclass of class MemoryHandle");
-                            classInit.visitLdcInsn(parameterForeignType.size());
+                            if (MemoryHandle.class != parameterType) throw new IllegalArgumentException("Illegal mapping type; expected class MemoryHandle");
+                            visitLdcInsn(classInit, parameterForeignType.size());
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BYTE",
                                     "Ljava/lang/foreign/ValueLayout$OfByte;");
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
@@ -702,11 +733,11 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 4);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
-                                    "structLayout", "(JLjava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/SequenceLayout;", true);
+                                    "structLayout", "([Ljava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/StructLayout;", true);
                             classInit.visitVarInsn(Opcodes.ASTORE, 3);
                         }
                         classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                        classInit.visitIntInsn(Opcodes.SIPUSH, i);
+                        visitLdcInsn(classInit, i);
                         if (parameterForeignType.isCompound()) classInit.visitVarInsn(Opcodes.ALOAD, 3);
                         else dumpMemoryLayout(classInit, parameterType, parameterForeignType);
                         classInit.visitInsn(Opcodes.AASTORE);
@@ -722,9 +753,8 @@ public class FFMForeignProvider extends ForeignProvider {
                     }
                     else {
                         if (returnForeignType.isCompound()) {
-                            if (!MemoryHandle.class.isAssignableFrom(returnType))
-                                throw new IllegalArgumentException("Illegal mapping type; expected subclass of class MemoryHandle");
-                            classInit.visitLdcInsn(returnForeignType.size());
+                            if (MemoryHandle.class != returnType) throw new IllegalArgumentException("Illegal mapping type; expected class MemoryHandle");
+                            visitLdcInsn(classInit, returnForeignType.size());
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BYTE",
                                     "Ljava/lang/foreign/ValueLayout$OfByte;");
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
@@ -739,7 +769,7 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 5);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/MemoryLayout",
-                                    "structLayout", "(JLjava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/SequenceLayout;", true);
+                                    "structLayout", "([Ljava/lang/foreign/MemoryLayout;)Ljava/lang/foreign/StructLayout;", true);
                         }
                         else dumpMemoryLayout(classInit, returnType, returnForeignType);
                         classInit.visitVarInsn(Opcodes.ALOAD, 2);
@@ -754,7 +784,7 @@ public class FFMForeignProvider extends ForeignProvider {
                     if (saveErrno) linkerOptionsLength ++;
                     if (critical) linkerOptionsLength ++;
                     if (firstVarArgIndex != -1) linkerOptionsLength ++;
-                    classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsLength);
+                    visitLdcInsn(classInit, linkerOptionsLength);
                     classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/foreign/Linker$Option");
                     classInit.visitVarInsn(Opcodes.ASTORE, 3);
                     int linkerOptionsIndex = 0;
@@ -764,34 +794,34 @@ public class FFMForeignProvider extends ForeignProvider {
                         classInit.visitVarInsn(Opcodes.ASTORE, 4);
                         classInit.visitVarInsn(Opcodes.ALOAD, 4);
                         classInit.visitInsn(Opcodes.ICONST_0);
-                        classInit.visitLdcInsn(FFMLastErrno.name());
+                        visitLdcInsn(classInit, FFMLastErrno.name());
                         classInit.visitInsn(Opcodes.AASTORE);
                         classInit.visitVarInsn(Opcodes.ALOAD, 4);
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                                 "captureCallState", "([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;", true);
                         classInit.visitVarInsn(Opcodes.ASTORE, 4);
                         classInit.visitVarInsn(Opcodes.ALOAD, 3);
-                        classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsIndex ++);
+                        visitLdcInsn(classInit, linkerOptionsIndex ++);
                         classInit.visitVarInsn(Opcodes.ALOAD, 4);
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
                     if (critical) {
-                        classInit.visitLdcInsn(!trivial);
+                        visitLdcInsn(classInit, !trivial);
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                                 "critical", "(Z)Ljava/lang/foreign/Linker$Option;", true);
                         classInit.visitVarInsn(Opcodes.ASTORE, 4);
                         classInit.visitVarInsn(Opcodes.ALOAD, 3);
-                        classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsIndex ++);
+                        visitLdcInsn(classInit, linkerOptionsIndex ++);
                         classInit.visitVarInsn(Opcodes.ALOAD, 4);
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
                     if (firstVarArgIndex != -1) {
-                        classInit.visitLdcInsn(firstVarArgIndex);
+                        visitLdcInsn(classInit, firstVarArgIndex);
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/foreign/Linker$Option",
                                 "firstVariadicArg", "(I)Ljava/lang/foreign/Linker$Option;", true);
                         classInit.visitVarInsn(Opcodes.ASTORE, 4);
                         classInit.visitVarInsn(Opcodes.ALOAD, 3);
-                        classInit.visitIntInsn(Opcodes.BIPUSH, linkerOptionsIndex);
+                        visitLdcInsn(classInit, linkerOptionsIndex);
                         classInit.visitVarInsn(Opcodes.ALOAD, 4);
                         classInit.visitInsn(Opcodes.AASTORE);
                     }
@@ -802,19 +832,19 @@ public class FFMForeignProvider extends ForeignProvider {
                             "(Ljava/lang/foreign/MemorySegment;Ljava/lang/foreign/FunctionDescriptor;[Ljava/lang/foreign/Linker$Option;)Ljava/lang/invoke/MethodHandle;",
                             true);
                     classInit.visitVarInsn(Opcodes.ASTORE, 1);
-                    for (int i = 0; i < parameters.length; i ++) {
+                    for (int i = 0; i < parameterForeignTypes.length; i ++) {
                         ForeignType parameterForeignType = parameterForeignTypes[i];
                         if (parameterForeignType == ScalarType.SHORT && Foreign.shortSize() == 2) {
                             classInit.visitInsn(Opcodes.ICONST_1);
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "SHORT_TO_INT16",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -825,12 +855,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "INT_TO_INT32",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -841,12 +871,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "LONG_TO_INT32",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -857,12 +887,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "ADDRESS_TO_INT32",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -873,12 +903,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "INT64_TO_SEGMENT",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -889,12 +919,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "WCHAR_TO_UTF16",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -905,12 +935,12 @@ public class FFMForeignProvider extends ForeignProvider {
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
-                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "HANDLE_TO_SEGMENT",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
-                            classInit.visitLdcInsn(i);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -977,7 +1007,7 @@ public class FFMForeignProvider extends ForeignProvider {
                     classInit.visitFieldInsn(Opcodes.PUTSTATIC, proxyInternalName, methodFieldName,
                             "Ljava/lang/invoke/MethodHandle;");
                     methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/invoke/MethodHandle", "invokeExact",
-                            getMethodDescriptor(method, saveErrno), false);
+                            getMethodDescriptor(method, saveErrno, addReturnMemoryParameter), false);
                     dumpReturnOpcode(methodVisitor, returnType);
                     methodVisitor.visitMaxs(0, 0);
                     methodVisitor.visitEnd();
@@ -988,6 +1018,7 @@ public class FFMForeignProvider extends ForeignProvider {
         classInit.visitMaxs(0, 0);
         classInit.visitEnd();
 
+        classWriter.visitEnd();
         try {
             return FFMUtil.UnsafeHolder.IMPL_LOOKUP.findConstructor(FFMUtil.defineClass(classLoader, proxyName, classWriter.toByteArray()),
                     MethodType.methodType(void.class)).invoke();
@@ -995,6 +1026,61 @@ public class FFMForeignProvider extends ForeignProvider {
             throw e;
         } catch (Throwable e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    private static void visitLdcInsn(MethodVisitor methodVisitor, Object value) {
+        switch (value) {
+            case Long lVal -> {
+                if (lVal == 0) methodVisitor.visitInsn(Opcodes.LCONST_0);
+                else if (lVal == 1) methodVisitor.visitInsn(Opcodes.LCONST_1);
+                else methodVisitor.visitLdcInsn(value);
+            }
+            case Float fVal -> {
+                if (fVal == 0) methodVisitor.visitInsn(Opcodes.FCONST_0);
+                else if (fVal == 1) methodVisitor.visitInsn(Opcodes.FCONST_1);
+                else methodVisitor.visitLdcInsn(value);
+            }
+            case Double dVal -> {
+                if (dVal == 0) methodVisitor.visitInsn(Opcodes.DCONST_0);
+                else if (dVal == 1) methodVisitor.visitInsn(Opcodes.DCONST_1);
+                else methodVisitor.visitLdcInsn(value);
+            }
+            case Number number -> {
+                int iVal = number.intValue();
+                switch (iVal) {
+                    case 0:
+                        methodVisitor.visitInsn(Opcodes.ICONST_0);
+                        break;
+                    case 1:
+                        methodVisitor.visitInsn(Opcodes.ICONST_1);
+                        break;
+                    case 2:
+                        methodVisitor.visitInsn(Opcodes.ICONST_2);
+                        break;
+                    case 3:
+                        methodVisitor.visitInsn(Opcodes.ICONST_3);
+                        break;
+                    case 4:
+                        methodVisitor.visitInsn(Opcodes.ICONST_4);
+                        break;
+                    case 5:
+                        methodVisitor.visitInsn(Opcodes.ICONST_5);
+                        break;
+                    case -1:
+                        methodVisitor.visitInsn(Opcodes.ICONST_M1);
+                        break;
+                    default:
+                        if (iVal >= Byte.MIN_VALUE && iVal <= Byte.MAX_VALUE)
+                            methodVisitor.visitIntInsn(Opcodes.BIPUSH, iVal);
+                        else if (iVal >= Short.MIN_VALUE && iVal <= Short.MAX_VALUE)
+                            methodVisitor.visitIntInsn(Opcodes.SIPUSH, iVal);
+                        else methodVisitor.visitLdcInsn(value);
+                        break;
+                }
+            }
+            case null -> methodVisitor.visitInsn(Opcodes.ACONST_NULL);
+            default -> methodVisitor.visitLdcInsn(value);
         }
     }
 
@@ -1181,12 +1267,14 @@ public class FFMForeignProvider extends ForeignProvider {
         methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "multiffi/ffi/ScalarType", name, "Lmultiffi/ffi/ScalarType;");
     }
 
-    public static String getMethodDescriptor(Method method, boolean saveErrno) {
+    public static String getMethodDescriptor(Method method, boolean saveErrno, boolean addReturnMemoryParameter) {
         StringBuilder builder = new StringBuilder();
         builder.append('(');
+        if (addReturnMemoryParameter) appendDescriptor(SegmentAllocator.class, builder);
         if (saveErrno) appendDescriptor(MemorySegment.class, builder);
-        for (Class<?> parameter : method.getParameterTypes()) {
-            appendDescriptor(parameter, builder);
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        for (int i = (addReturnMemoryParameter ? 1 : 0); i < parameterTypes.length; i ++) {
+            appendDescriptor(parameterTypes[i], builder);
         }
         builder.append(')');
         appendDescriptor(method.getReturnType(), builder);

@@ -5,7 +5,6 @@ import com.kenai.jffi.Closure;
 import com.kenai.jffi.ClosureManager;
 import com.kenai.jffi.Type;
 import com.kenai.jffi.internal.Cleaner;
-import jnr.ffi.JNRAccessor;
 import jnr.ffi.Memory;
 import jnr.ffi.NativeType;
 import jnr.ffi.Platform;
@@ -180,7 +179,7 @@ public class JNRForeignProvider extends ForeignProvider {
     public void loadLibrary(String libraryName) throws IOException {
         Objects.requireNonNull(libraryName);
         try {
-            JNRLibraryLookup.loadLibrary(libraryName, JNRAccessor.DEFAULT_SEARCH_PATHS, Collections.emptyMap());
+            JNRLibraryLookup.loadLibrary(libraryName, JNRLibraryLookup.DefaultLibraryPathHolder.DEFAULT_SEARCH_PATHS, Collections.emptyMap());
         }
         catch (UnsatisfiedLinkError e) {
             throw new IOException(e.getMessage());
@@ -191,7 +190,7 @@ public class JNRForeignProvider extends ForeignProvider {
     public void loadLibrary(File libraryFile) throws IOException {
         Objects.requireNonNull(libraryFile);
         try {
-            JNRLibraryLookup.loadLibrary(libraryFile.getAbsolutePath(), JNRAccessor.DEFAULT_SEARCH_PATHS, Collections.emptyMap());
+            JNRLibraryLookup.loadLibrary(libraryFile.getAbsolutePath(), JNRLibraryLookup.DefaultLibraryPathHolder.DEFAULT_SEARCH_PATHS, Collections.emptyMap());
         }
         catch (UnsatisfiedLinkError e) {
             throw new IOException(e.getMessage());
@@ -214,12 +213,12 @@ public class JNRForeignProvider extends ForeignProvider {
 
     @Override
     public int getLastErrno() {
-        return JNRUtil.LastErrnoHolder.ERRNO_THREAD_LOCAL.get();
+        return JNRLastErrno.get();
     }
 
     @Override
     public void setLastErrno(int errno) {
-        JNRUtil.LastErrnoHolder.ERRNO_THREAD_LOCAL.set(errno);
+        JNRLastErrno.set(errno);
     }
 
     private static final class ErrorStringMapperHolder {
@@ -287,7 +286,7 @@ public class JNRForeignProvider extends ForeignProvider {
                         long address = callOptionVisitor.visitAddress(method);
                         int firstVarargIndex = callOptionVisitor.visitFirstVarArgIndex(method);
                         ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
-                        ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method);
+                        ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
                         CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
                         boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                         for (int i = 0; i < parameterForeignTypes.length; i ++) {
@@ -400,7 +399,17 @@ public class JNRForeignProvider extends ForeignProvider {
             }
             classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
         }
-        return Proxy.newProxyInstance(classLoader, classes, new NativeInvocationHandler(classes, callOptionVisitor));
+        if (classes.length == 0) return null;
+        else {
+            if (JNRUtil.ASM_AVAILABLE) {
+                try {
+                    return JNRASMRuntime.generateProxy(classLoader, classes, callOptionVisitor);
+                }
+                catch (Throwable ignored) {
+                }
+            }
+            return Proxy.newProxyInstance(classLoader, classes, new NativeInvocationHandler(classes, callOptionVisitor));
+        }
     }
 
     @Override

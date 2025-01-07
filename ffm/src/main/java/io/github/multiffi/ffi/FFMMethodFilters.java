@@ -14,7 +14,7 @@ public final class FFMMethodFilters {
         throw new AssertionError("No io.github.multiffi.ffi.FFMMethodFilters instances for you!");
     }
 
-    private static MemorySegment handleToSegment(MemoryHandle handle) {
+    public static MemorySegment handleToSegment(MemoryHandle handle) {
         if (handle == null || handle.isNil()) throw new NullPointerException();
         else if (handle.isDirect()) return MemorySegment.ofAddress(handle.address())
                 .reinterpret(handle.isBounded() ? handle.size() : Foreign.addressSize() == 8 ? Long.MAX_VALUE : Integer.MAX_VALUE);
@@ -33,7 +33,7 @@ public final class FFMMethodFilters {
             return handle.arrayOffset() == 0L ? segment : segment.asSlice(handle.arrayOffset());
         }
     }
-    private static MemoryHandle segmentToHandle(MemorySegment segment) {
+    public static MemoryHandle segmentToHandle(MemorySegment segment) {
         if (segment == null || MemorySegment.NULL.equals(segment)) throw new NullPointerException();
         else if (segment.isNative()) return MemoryHandle.wrap(segment.address(), segment.byteSize());
         else {
@@ -50,42 +50,42 @@ public final class FFMMethodFilters {
             };
         }
     }
-    private static long segmentToInt64(MemorySegment segment) {
+    public static long segmentToInt64(MemorySegment segment) {
         return segment == null ? 0L : segment.address();
     }
-    private static MemorySegment int64ToSegment(long address) {
+    public static MemorySegment int64ToSegment(long address) {
         return address == 0L ? MemorySegment.NULL : MemorySegment.ofAddress(address);
     }
-    private static long int16ToInt64(short value) {
+    public static long int16ToInt64(short value) {
         return (long) value & 0xFFFFL;
     }
-    private static long int32ToInt64(int value) {
+    public static long int32ToInt64(int value) {
         return (long) value & 0xFFFFFFFFL;
     }
-    private static int utf16ToInt32(char value) {
+    public static int utf16ToInt32(char value) {
         return (int) value & 0xFFFF;
     }
-    private static short shortToInt16(long value) {
+    public static short shortToInt16(long value) {
         if (FFMUtil.ABIHolder.SHORT.byteSize() == 2 && (value > 65535 || value < 0))
             throw new ArithmeticException("integer overflow");
         else return (short) value;
     }
-    private static int intToInt32(long value) {
+    public static int intToInt32(long value) {
         if (FFMUtil.ABIHolder.INT.byteSize() == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
-    private static int longToInt32(long value) {
+    public static int longToInt32(long value) {
         if (FFMUtil.ABIHolder.LONG.byteSize() == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
-    private static int addressToInt32(long value) {
+    public static int addressToInt32(long value) {
         if (FFMUtil.ABIHolder.LONG.byteSize() == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
-    private static char wcharToUTF16(int value) {
+    public static char wcharToUTF16(int value) {
         if (FFMUtil.ABIHolder.WCHAR_T.byteSize() == 2 && (value > 65535 || value < 0))
             throw new ArithmeticException("integer overflow");
         else return (char) value;

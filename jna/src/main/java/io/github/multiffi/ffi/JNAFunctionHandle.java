@@ -180,12 +180,22 @@ public class JNAFunctionHandle extends FunctionHandle {
         }
     }
 
+    private static Object checkArgument(Object argument) {
+        if (argument instanceof Boolean || argument instanceof Character || argument instanceof Number) return argument;
+        else {
+            JNACompound compound = JNACompound.getInstance((MemoryHandle) argument);
+            compound.autoWrite();
+            return compound;
+        }
+    }
+
     private static final Object[] EMPTY_ARGUMENTS = new Object[0];
     @Override
     public Object invoke(Object... args) {
         if (args == null) args = EMPTY_ARGUMENTS;
         if (dyncall) {
             Object varargs = args[args.length - 1];
+            if (!varargs.getClass().isArray()) throw new IllegalArgumentException("Last argument must be array as variadic arguments");
             int varargsLength = Array.getLength(varargs);
             Object[] arguments = new Object[args.length - 1 + varargsLength];
             System.arraycopy(args, 0, arguments, 0, args.length - 1);
@@ -195,14 +205,18 @@ public class JNAFunctionHandle extends FunctionHandle {
         Object result;
         try {
             if (returnType == null) {
-                JNAUtil.invoke(null, function, Pointer.nativeValue(function), callFlags);
+                Object[] arguments = new Object[args.length];
+                for (int i = 0; i < arguments.length; i ++) {
+                    arguments[i] = i < parameterTypes.size() ? checkArgument(parameterTypes.get(i), args[i]) : checkArgument(args[i]);
+                }
+                JNAUtil.invoke(null, function, Pointer.nativeValue(function), callFlags, arguments);
                 result = null;
             }
             else if (returnType.isCompound()) {
                 MemoryHandle memoryHandle = (MemoryHandle) args[0];
-                Object[] arguments = new Object[parameterTypes.size() - 1];
-                for (int i = 1; i < parameterTypes.size(); i ++) {
-                    arguments[i - 1] = checkArgument(parameterTypes.get(i), args[i]);
+                Object[] arguments = new Object[args.length];
+                for (int i = 1; i < arguments.length; i ++) {
+                    arguments[i - 1] = i < parameterTypes.size() ? checkArgument(parameterTypes.get(i), args[i]) : checkArgument(args[i]);
                 }
                 JNACompound compound = JNACompound.getInstance(memoryHandle);
                 JNAUtil.invoke(compound, function, Pointer.nativeValue(function), callFlags, arguments);
@@ -212,14 +226,14 @@ public class JNAFunctionHandle extends FunctionHandle {
             else {
                 Object[] arguments = new Object[args.length];
                 for (int i = 0; i < arguments.length; i ++) {
-                    arguments[i] = checkArgument(parameterTypes.get(i), args[i]);
+                    arguments[i] = i < parameterTypes.size() ? checkArgument(parameterTypes.get(i), args[i]) : checkArgument(args[i]);
                 }
                 result = JNAUtil.invoke(returnType == ScalarType.ADDRESS ? Pointer.class : returnType.carrier(),
                         function, Pointer.nativeValue(function), callFlags, arguments);
             }
         }
         finally {
-            if (saveErrno) JNAUtil.LastErrnoHolder.ERRNO_THREAD_LOCAL.set(Native.getLastError());
+            if (saveErrno) JNALastErrno.dump();
         }
         return result;
     }

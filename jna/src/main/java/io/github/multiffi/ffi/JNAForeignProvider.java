@@ -317,7 +317,7 @@ public class JNAForeignProvider extends ForeignProvider {
         synchronized (NativeLibraryHolder.NATIVE_LIBRARIES) {
             for (NativeLibrary library : NativeLibraryHolder.NATIVE_LIBRARIES) {
                 try {
-                    return JNAAccessor.getSymbolAddress(library, symbolName);
+                    return JNAAccessor.getNativeLibraryAccessor().getSymbolAddress(library, symbolName);
                 }
                 catch (UnsatisfiedLinkError ignored) {
                 }
@@ -333,12 +333,12 @@ public class JNAForeignProvider extends ForeignProvider {
 
     @Override
     public int getLastErrno() {
-        return JNAUtil.LastErrnoHolder.ERRNO_THREAD_LOCAL.get();
+        return JNALastErrno.get();
     }
 
     @Override
     public void setLastErrno(int errno) {
-        JNAUtil.LastErrnoHolder.ERRNO_THREAD_LOCAL.set(errno);
+        JNALastErrno.set(errno);
     }
 
     private static final class ErrorStringMapperHolder {
@@ -403,7 +403,7 @@ public class JNAForeignProvider extends ForeignProvider {
         return new JNAFunctionHandle(address, firstVararg, returnType, parameterTypes, options);
     }
 
-    private static class NativeInvocationHandler implements InvocationHandler {
+    private static final class NativeInvocationHandler implements InvocationHandler {
         private final Map<Method, FunctionHandle> functionHandleMap;
         public NativeInvocationHandler(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
             Map<Method, FunctionHandle> functionHandleMap = new HashMap<>();
@@ -419,7 +419,7 @@ public class JNAForeignProvider extends ForeignProvider {
                         long address = callOptionVisitor.visitAddress(method);
                         int firstVarargIndex = callOptionVisitor.visitFirstVarArgIndex(method);
                         ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
-                        ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method);
+                        ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
                         CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
                         boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                         for (int i = 0; i < parameterForeignTypes.length; i ++) {
@@ -471,7 +471,17 @@ public class JNAForeignProvider extends ForeignProvider {
             }
             classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
         }
-        return Proxy.newProxyInstance(classLoader, classes, new NativeInvocationHandler(classes, callOptionVisitor));
+        if (classes.length == 0) return null;
+        else {
+            if (JNAUtil.ASM_AVAILABLE) {
+                try {
+                    return JNAASMRuntime.generateProxy(classLoader, classes, callOptionVisitor);
+                }
+                catch (Throwable ignored) {
+                }
+            }
+            return Proxy.newProxyInstance(classLoader, classes, new NativeInvocationHandler(classes, callOptionVisitor));
+        }
     }
 
     private static final class CallbackHolder implements Runnable {

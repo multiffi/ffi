@@ -10,6 +10,7 @@ import multiffi.ffi.MemoryHandle;
 import multiffi.ffi.ScalarType;
 import sun.misc.Unsafe;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -24,7 +25,16 @@ final class JNAUtil {
         throw new AssertionError("No io.github.multiffi.ffi.JNAUtil instances for you!");
     }
 
+    private static boolean getBooleanProperty(String propertyName, boolean defaultValue) {
+        try {
+            return Boolean.parseBoolean(System.getProperty(propertyName, Boolean.valueOf(defaultValue).toString()));
+        } catch (Throwable e) {
+            return defaultValue;
+        }
+    }
+
     public static final boolean STDCALL_AVAILABLE = Platform.isWindows() && !Platform.isWindowsCE() && !Platform.is64Bit();
+    public static final boolean ASM_AVAILABLE = getBooleanProperty("multiffi.ffi.jna.asm", !Platform.isAndroid());
     public static final boolean IS_BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
 
     public static final class UnsafeHolder {
@@ -34,6 +44,7 @@ final class JNAUtil {
         public static final Unsafe UNSAFE;
         public static final Object IMPL_LOOKUP;
         public static final Method unreflectMethod;
+        public static final Method unreflectConstructorMethod;
         public static final Method bindToMethod;
         public static final Method invokeWithArgumentsMethod;
         static {
@@ -46,6 +57,7 @@ final class JNAUtil {
             }
             Object _lookup;
             Method _unreflectMethod;
+            Method _unreflectConstructorMethod;
             Method _bindToMethod;
             Method _invokeWithArgumentsMethod;
             try {
@@ -53,17 +65,20 @@ final class JNAUtil {
                 Field field = lookupClass.getDeclaredField("IMPL_LOOKUP");
                 _lookup = UNSAFE.getObject(lookupClass, UNSAFE.staticFieldOffset(field));
                 _unreflectMethod = lookupClass.getDeclaredMethod("unreflect", Method.class);
+                _unreflectConstructorMethod = lookupClass.getDeclaredMethod("unreflectConstructor", Constructor.class);
                 Class<?> methodHandleClass = Class.forName("java.lang.invoke.MethodHandle");
                 _bindToMethod = methodHandleClass.getDeclaredMethod("bindTo", Object.class);
                 _invokeWithArgumentsMethod = methodHandleClass.getDeclaredMethod("invokeWithArguments", Object[].class);
             } catch (NoSuchFieldException | ClassNotFoundException | NoSuchMethodException e) {
                 _lookup = null;
                 _unreflectMethod = null;
+                _unreflectConstructorMethod = null;
                 _bindToMethod = null;
                 _invokeWithArgumentsMethod = null;
             }
             IMPL_LOOKUP = _lookup;
             unreflectMethod = _unreflectMethod;
+            unreflectConstructorMethod = _unreflectConstructorMethod;
             bindToMethod = _bindToMethod;
             invokeWithArgumentsMethod = _invokeWithArgumentsMethod;
         }
@@ -94,16 +109,28 @@ final class JNAUtil {
         }
     }
 
-    public static final class LastErrnoHolder {
-        private LastErrnoHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final ThreadLocal<Integer> ERRNO_THREAD_LOCAL = new ThreadLocal<Integer>() {
-            @Override
-            protected Integer initialValue() {
-                return 0;
+    @SuppressWarnings("unchecked")
+    public static <T> T newInstance(Constructor<T> constructor, Object... args) throws Throwable {
+        if (UnsafeHolder.IMPL_LOOKUP == null) {
+            constructor.setAccessible(true);
+            try {
+                return constructor.newInstance(args);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Unexpected exception");
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
             }
-        };
+        }
+        else {
+            try {
+                Object methodHandle = UnsafeHolder.unreflectConstructorMethod.invoke(UnsafeHolder.IMPL_LOOKUP, constructor);
+                return (T) UnsafeHolder.invokeWithArgumentsMethod.invoke(methodHandle, (Object) args);
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Unexpected exception");
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
+            }
+        }
     }
 
     public static String mapLibraryName(String libraryName) {
@@ -156,28 +183,28 @@ final class JNAUtil {
 
     public static Object invoke(Object returnType, Function function, long address, int callFlags, Object... args) {
         if (returnType == null || returnType == void.class || returnType == Void.class) {
-            JNAAccessor.invokeVoid(function, address, callFlags, args);
+            JNAAccessor.getNativeAccessor().invokeVoid(function, address, callFlags, args);
             return null;
         }
         else if (returnType == boolean.class || returnType == Boolean.class)
-            return JNAAccessor.invokeInt(function, address, callFlags, args) != 0;
+            return JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args) != 0;
         else if (returnType == byte.class || returnType == Byte.class)
-            return (byte) JNAAccessor.invokeInt(function, address, callFlags, args);
+            return (byte) JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
         else if (returnType == short.class || returnType == Short.class)
-            return (short) JNAAccessor.invokeInt(function, address, callFlags, args);
+            return (short) JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
         else if (returnType == int.class || returnType == Integer.class)
-            return JNAAccessor.invokeInt(function, address, callFlags, args);
+            return JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
         else if (returnType == long.class || returnType == Long.class)
-            return JNAAccessor.invokeLong(function, address, callFlags, args);
+            return JNAAccessor.getNativeAccessor().invokeLong(function, address, callFlags, args);
         else if (returnType == float.class || returnType == Float.class)
-            return JNAAccessor.invokeFloat(function, address, callFlags, args);
+            return JNAAccessor.getNativeAccessor().invokeFloat(function, address, callFlags, args);
         else if (returnType == double.class || returnType == Double.class)
-            return JNAAccessor.invokeDouble(function, address, callFlags, args);
+            return JNAAccessor.getNativeAccessor().invokeDouble(function, address, callFlags, args);
         else if (returnType == char.class || returnType == Character.class)
-            return (char) JNAAccessor.invokeInt(function, address, callFlags, args);
+            return (char) JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
         else if (returnType == Pointer.class)
-            return JNAAccessor.invokePointer(function, address, callFlags, args);
-        else return JNAAccessor.invokeStructure((Structure) returnType, function, address, callFlags, args);
+            return JNAAccessor.getNativeAccessor().invokePointer(function, address, callFlags, args);
+        else return JNAAccessor.getNativeAccessor().invokeStructure((Structure) returnType, function, address, callFlags, args);
     }
 
     public static void checkType(ForeignType type, Class<?> clazz) {

@@ -108,6 +108,23 @@ public final class JNRLibraryLookup {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public static final class DefaultLibraryPathHolder {
+        private DefaultLibraryPathHolder() {
+            throw new UnsupportedOperationException();
+        }
+        public static final List<String> DEFAULT_SEARCH_PATHS;
+        static {
+            try {
+                Class<?> clazz = Class.forName("jnr.ffi.LibraryLoader$DefaultLibPaths");
+                Field field = clazz.getDeclaredField("PATHS");
+                DEFAULT_SEARCH_PATHS = (List<String>) JNRUtil.UnsafeHolder.UNSAFE.getObject(clazz, JNRUtil.UnsafeHolder.UNSAFE.staticFieldOffset(field));
+            } catch (ClassCastException | NoSuchFieldException | ClassNotFoundException e) {
+                throw new IllegalStateException("Unexpected exception");
+            }
+        }
+    }
+
     private static final Set<Library> LIBRARIES = new HashSet<>();
     static {
         LIBRARIES.add(Library.getDefault());
