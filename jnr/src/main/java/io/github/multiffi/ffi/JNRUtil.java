@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 @SuppressWarnings({"deprecation", "removal"})
-public final class JNRUtil {
+final class JNRUtil {
 
     private JNRUtil() {
         throw new AssertionError("No io.github.multiffi.ffi.JNAUtil instances for you!");
