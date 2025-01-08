@@ -34,7 +34,7 @@ final class JNAUtil {
     }
 
     public static final boolean STDCALL_AVAILABLE = Platform.isWindows() && !Platform.isWindowsCE() && !Platform.is64Bit();
-    public static final boolean ASM_AVAILABLE = getBooleanProperty("multiffi.ffi.jna.asm", !Platform.isAndroid());
+    public static final boolean ASM_AVAILABLE = !getBooleanProperty("multiffi.ffi.jna.noasm", Platform.isAndroid());
     public static final boolean IS_BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
 
     public static final class UnsafeHolder {

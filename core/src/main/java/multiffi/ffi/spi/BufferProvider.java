@@ -23,7 +23,7 @@ public abstract class BufferProvider {
                 try {
                     IMPLEMENTATION = (BufferProvider) Class
                             .forName(Objects.requireNonNull(System.getProperty("multiffi.buffer.provider")))
-                            .getDeclaredConstructor()
+                            .getConstructor()
                             .newInstance();
                 } catch (Throwable e) {
                     try {

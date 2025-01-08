@@ -17,7 +17,7 @@ public abstract class AllocatorProvider {
                 try {
                     IMPLEMENTATION = (AllocatorProvider) Class
                             .forName(Objects.requireNonNull(System.getProperty("multiffi.allocator.provider")))
-                            .getDeclaredConstructor()
+                            .getConstructor()
                             .newInstance();
                 } catch (Throwable e) {
                     try {

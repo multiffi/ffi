@@ -167,38 +167,38 @@ public final class Foreign {
         return IMPLEMENTATION.downcallHandle(address, returnType, parameterTypes);
     }
 
-    public static <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
-                                   long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallInterface(classLoader, clazz, address, firstVararg, returnType, parameterTypes, options);
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
+                                      long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVararg, returnType, parameterTypes, options);
     }
 
-    public static <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallInterface(classLoader, clazz, address, firstVararg, returnType, parameterTypes);
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVararg, returnType, parameterTypes);
     }
 
-    public static <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
-                                   long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallInterface(classLoader, clazz, address, returnType, parameterTypes, options);
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
+                                      long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, returnType, parameterTypes, options);
     }
 
-    public static <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallInterface(classLoader, clazz, address, returnType, parameterTypes);
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, returnType, parameterTypes);
     }
 
-    public static <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallInterface(clazz, address, firstVararg, returnType, parameterTypes, options);
+    public static <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallProxy(clazz, address, firstVararg, returnType, parameterTypes, options);
     }
 
-    public static <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallInterface(clazz, address, firstVararg, returnType, parameterTypes);
+    public static <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallProxy(clazz, address, firstVararg, returnType, parameterTypes);
     }
 
-    public static <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallInterface(clazz, address, returnType, parameterTypes, options);
+    public static <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallProxy(clazz, address, returnType, parameterTypes, options);
     }
 
-    public static <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallInterface(clazz, address, returnType, parameterTypes);
+    public static <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallProxy(clazz, address, returnType, parameterTypes);
     }
 
     public static Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
@@ -215,6 +215,22 @@ public final class Foreign {
 
     public static <T> T downcallProxy(Class<T> clazz, CallOptionVisitor callOptionVisitor) {
         return IMPLEMENTATION.downcallProxy(clazz, callOptionVisitor);
+    }
+
+    public static Object downcallProxy(ClassLoader classLoader, Class<?>[] classes) {
+        return IMPLEMENTATION.downcallProxy(classLoader, classes);
+    }
+
+    public static Object downcallProxy(Class<?>[] classes) {
+        return IMPLEMENTATION.downcallProxy(classes);
+    }
+
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz);
+    }
+
+    public static <T> T downcallProxy(Class<T> clazz) {
+        return IMPLEMENTATION.downcallProxy(clazz);
     }
 
     public static long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {

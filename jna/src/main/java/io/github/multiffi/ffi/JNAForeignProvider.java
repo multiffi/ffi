@@ -14,6 +14,7 @@ import multiffi.ffi.CallOptionVisitor;
 import multiffi.ffi.ForeignType;
 import multiffi.ffi.FunctionHandle;
 import multiffi.ffi.MemoryHandle;
+import multiffi.ffi.SimpleCallOptionVisitor;
 import multiffi.ffi.StandardCallOption;
 import multiffi.ffi.UnsatisfiedLinkException;
 import multiffi.ffi.spi.ForeignProvider;
@@ -403,9 +404,9 @@ public class JNAForeignProvider extends ForeignProvider {
         return new JNAFunctionHandle(address, firstVararg, returnType, parameterTypes, options);
     }
 
-    private static final class NativeInvocationHandler implements InvocationHandler {
+    private static final class ForeignInvocationHandler implements InvocationHandler {
         private final Map<Method, FunctionHandle> functionHandleMap;
-        public NativeInvocationHandler(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
+        public ForeignInvocationHandler(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
             Map<Method, FunctionHandle> functionHandleMap = new HashMap<>();
             for (Class<?> clazz : classes) {
                 for (Method method : clazz.getMethods()) {
@@ -421,10 +422,6 @@ public class JNAForeignProvider extends ForeignProvider {
                         ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
                         ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
                         CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
-                        boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
-                        for (int i = 0; i < parameterForeignTypes.length; i ++) {
-                            JNAUtil.checkType(parameterForeignTypes[i], parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
-                        }
                         FunctionHandle functionHandle = new JNAFunctionHandle(address, firstVarargIndex, returnForeignType, parameterForeignTypes, callOptions);
                         functionHandleMap.put(method, functionHandle);
                     }
@@ -448,12 +445,25 @@ public class JNAForeignProvider extends ForeignProvider {
             }
             else if (methodName.equals("toString") && returnType == String.class && parameterTypes.length == 0)
                 return proxy.getClass().getName() + "@" + Integer.toHexString(hashCode());
-            else return functionHandleMap.get(method).invoke(args);
+            else {
+                Object result = functionHandleMap.get(method).invoke(args);
+                if (returnType == void.class) return null;
+                else if (returnType == boolean.class) return (Boolean) result;
+                else if (returnType == char.class) return (Character) result;
+                else if (returnType == byte.class) return ((Number) result).byteValue();
+                else if (returnType == short.class) return ((Number) result).shortValue();
+                else if (returnType == int.class) return ((Number) result).intValue();
+                else if (returnType == long.class) return ((Number) result).longValue();
+                else if (returnType == float.class) return ((Number) result).floatValue();
+                else if (returnType == double.class) return ((Number) result).doubleValue();
+                else return (MemoryHandle) result;
+            }
         }
     }
 
     @Override
     public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
+        if (callOptionVisitor == null) callOptionVisitor = new SimpleCallOptionVisitor();
         if (classLoader == null) {
             Class<?> clazz;
             try {
@@ -480,7 +490,7 @@ public class JNAForeignProvider extends ForeignProvider {
                 catch (Throwable ignored) {
                 }
             }
-            return Proxy.newProxyInstance(classLoader, classes, new NativeInvocationHandler(classes, callOptionVisitor));
+            return Proxy.newProxyInstance(classLoader, classes, new ForeignInvocationHandler(classes, callOptionVisitor));
         }
     }
 

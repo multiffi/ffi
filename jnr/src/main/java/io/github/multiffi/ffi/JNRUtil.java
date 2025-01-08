@@ -33,7 +33,7 @@ final class JNRUtil {
     public static final Platform PLATFORM = Platform.getNativePlatform();
     public static final boolean STDCALL_AVAILABLE = PLATFORM.getOS() == Platform.OS.WINDOWS
             && PLATFORM.is32Bit() && !PLATFORM.getOSName().startsWith("Windows CE");
-    public static final boolean ASM_AVAILABLE = PLATFORM.getOS() != Platform.OS.LINUX || !"dalvik".equalsIgnoreCase(System.getProperty("java.vm.name"));
+    public static final boolean ASM_AVAILABLE = !getBooleanProperty("multiffi.ffi.jnr.noasm", PLATFORM.getOS() == Platform.OS.LINUX && "dalvik".equalsIgnoreCase(System.getProperty("java.vm.name")));
     public static final boolean IS_BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
     public static final int WCHAR_SIZE = PLATFORM.getOS() == Platform.OS.WINDOWS ? 2 : 4;
 

@@ -7,6 +7,7 @@ import multiffi.ffi.ForeignType;
 import multiffi.ffi.FunctionHandle;
 import multiffi.ffi.MemoryHandle;
 import multiffi.ffi.ScalarType;
+import multiffi.ffi.SimpleCallOptionVisitor;
 import multiffi.ffi.StandardCallOption;
 import multiffi.ffi.UnsatisfiedLinkException;
 import multiffi.ffi.spi.ForeignProvider;
@@ -411,6 +412,7 @@ public class FFMForeignProvider extends ForeignProvider {
         if (classes.length == 0) return null;
         else if (classes.length > 65535)
             throw new IllegalArgumentException("interface limit exceeded: " + classes.length);
+        if (callOptionVisitor == null) callOptionVisitor = new SimpleCallOptionVisitor();
         if (classLoader == null) {
             Class<?> clazz = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).getCallerClass();
             classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
@@ -443,7 +445,7 @@ public class FFMForeignProvider extends ForeignProvider {
 
         for (Class<?> clazz : classes) {
             for (Method method : clazz.getMethods()) {
-                if (method.isDefault() || method.getDeclaringClass() == Object.class) continue;
+                if (method.isDefault() || method.getDeclaringClass() == Object.class || Modifier.isStatic(method.getModifiers())) continue;
                 String methodName = method.getName();
                 String methodFieldName = "function" + Integer.toHexString(method.hashCode());
                 boolean dyncall = false;
@@ -1086,27 +1088,27 @@ public class FFMForeignProvider extends ForeignProvider {
 
     private static void dumpMemoryLayout(MethodVisitor methodVisitor, Class<?> clazz, ForeignType type) {
         if (type == ScalarType.INT8 || type == ScalarType.CHAR) {
-            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected class byte");
+            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected byte");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BYTE",
                     "Ljava/lang/foreign/ValueLayout$OfByte;");
         }
         else if (type == ScalarType.INT16) {
-            if (clazz != short.class) throw new IllegalArgumentException("Illegal mapping type; expected class short");
+            if (clazz != short.class) throw new IllegalArgumentException("Illegal mapping type; expected short");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_SHORT",
                     "Ljava/lang/foreign/ValueLayout$OfShort;");
         }
         else if (type == ScalarType.INT32) {
-            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected class int");
+            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected int");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
                     "Ljava/lang/foreign/ValueLayout$OfInt;");
         }
         else if (type == ScalarType.INT64) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
                         "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
         else if (type == ScalarType.WCHAR) {
-            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected class int");
+            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected int");
             if (Foreign.wcharSize() == 2)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_CHAR",
                         "Ljava/lang/foreign/ValueLayout$OfChar;");
@@ -1114,7 +1116,7 @@ public class FFMForeignProvider extends ForeignProvider {
                         "Ljava/lang/foreign/ValueLayout$OfInt;");
         }
         else if (type == ScalarType.SHORT) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             if (Foreign.shortSize() == 2)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_SHORT",
                         "Ljava/lang/foreign/ValueLayout$OfShort;");
@@ -1122,7 +1124,7 @@ public class FFMForeignProvider extends ForeignProvider {
                         "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
         else if (type == ScalarType.INT) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             if (Foreign.intSize() == 4)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
                         "Ljava/lang/foreign/ValueLayout$OfInt;");
@@ -1130,7 +1132,7 @@ public class FFMForeignProvider extends ForeignProvider {
                         "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
         else if (type == ScalarType.LONG) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             if (Foreign.longSize() == 4)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
                         "Ljava/lang/foreign/ValueLayout$OfInt;");
@@ -1138,7 +1140,7 @@ public class FFMForeignProvider extends ForeignProvider {
                         "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
         else if (type == ScalarType.SIZE) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             if (Foreign.addressSize() == 4)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
                         "Ljava/lang/foreign/ValueLayout$OfInt;");
@@ -1146,27 +1148,27 @@ public class FFMForeignProvider extends ForeignProvider {
                         "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
         else if (type == ScalarType.FLOAT) {
-            if (clazz != float.class) throw new IllegalArgumentException("Illegal mapping type; expected class float");
+            if (clazz != float.class) throw new IllegalArgumentException("Illegal mapping type; expected float");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_FLOAT",
                     "Ljava/lang/foreign/ValueLayout$OfFloat;");
         }
         else if (type == ScalarType.DOUBLE) {
-            if (clazz != double.class) throw new IllegalArgumentException("Illegal mapping type; expected class double");
+            if (clazz != double.class) throw new IllegalArgumentException("Illegal mapping type; expected double");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_DOUBLE",
                     "Ljava/lang/foreign/ValueLayout$OfDouble;");
         }
         else if (type == ScalarType.BOOLEAN) {
-            if (clazz != boolean.class) throw new IllegalArgumentException("Illegal mapping type; expected class boolean");
+            if (clazz != boolean.class) throw new IllegalArgumentException("Illegal mapping type; expected boolean");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BOOLEAN",
                     "Ljava/lang/foreign/ValueLayout$OfBoolean;");
         }
         else if (type == ScalarType.UTF16) {
-            if (clazz != char.class) throw new IllegalArgumentException("Illegal mapping type; expected class char");
+            if (clazz != char.class) throw new IllegalArgumentException("Illegal mapping type; expected char");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_CHAR",
                     "Ljava/lang/foreign/ValueLayout$OfChar;");
         }
         else if (type == ScalarType.ADDRESS) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "ADDRESS",
                     "Ljava/lang/foreign/AddressLayout;");
         }
@@ -1204,63 +1206,63 @@ public class FFMForeignProvider extends ForeignProvider {
     private static void dumpForeignType(MethodVisitor methodVisitor, Class<?> clazz, ForeignType type) {
         String name;
         if (type == ScalarType.INT8) {
-            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected class byte");
+            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected byte");
             name = "INT8";
         }
         else if (type == ScalarType.CHAR) {
-            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected class byte");
+            if (clazz != byte.class) throw new IllegalArgumentException("Illegal mapping type; expected byte");
             name = "CHAR";
         }
         else if (type == ScalarType.INT16) {
-            if (clazz != short.class) throw new IllegalArgumentException("Illegal mapping type; expected class short");
+            if (clazz != short.class) throw new IllegalArgumentException("Illegal mapping type; expected short");
             name = "INT16";
         }
         else if (type == ScalarType.INT32) {
-            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected class int");
+            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected int");
             name = "INT32";
         }
         else if (type == ScalarType.INT64) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             name = "INT64";
         }
         else if (type == ScalarType.WCHAR) {
-            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected class int");
+            if (clazz != int.class) throw new IllegalArgumentException("Illegal mapping type; expected int");
             name = "WCHAR";
         }
         else if (type == ScalarType.SHORT) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             name = "SHORT";
         }
         else if (type == ScalarType.INT) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             name = "INT";
         }
         else if (type == ScalarType.LONG) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             name = "LONG";
         }
         else if (type == ScalarType.SIZE) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             name = "SIZE";
         }
         else if (type == ScalarType.FLOAT) {
-            if (clazz != float.class) throw new IllegalArgumentException("Illegal mapping type; expected class float");
+            if (clazz != float.class) throw new IllegalArgumentException("Illegal mapping type; expected float");
             name = "FLOAT";
         }
         else if (type == ScalarType.DOUBLE) {
-            if (clazz != double.class) throw new IllegalArgumentException("Illegal mapping type; expected class double");
+            if (clazz != double.class) throw new IllegalArgumentException("Illegal mapping type; expected double");
             name = "DOUBLE";
         }
         else if (type == ScalarType.BOOLEAN) {
-            if (clazz != boolean.class) throw new IllegalArgumentException("Illegal mapping type; expected class boolean");
+            if (clazz != boolean.class) throw new IllegalArgumentException("Illegal mapping type; expected boolean");
             name = "BOOLEAN";
         }
         else if (type == ScalarType.UTF16) {
-            if (clazz != char.class) throw new IllegalArgumentException("Illegal mapping type; expected class char");
+            if (clazz != char.class) throw new IllegalArgumentException("Illegal mapping type; expected char");
             name = "UTF16";
         }
         else if (type == ScalarType.ADDRESS) {
-            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected class long");
+            if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
             name = "ADDRESS";
         }
         else throw new IllegalStateException("Unexpected exception");

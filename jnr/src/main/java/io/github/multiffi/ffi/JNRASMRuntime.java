@@ -175,7 +175,7 @@ public final class JNRASMRuntime {
         Map<String, Long> directMethodMap = new HashMap<>();
         for (Class<?> clazz : classes) {
             for (Method method : clazz.getMethods()) {
-                if (method.isDefault() || method.getDeclaringClass() == Object.class) continue;
+                if (method.isDefault() || method.getDeclaringClass() == Object.class || Modifier.isStatic(method.getModifiers())) continue;
                 String methodName = method.getName();
                 String methodFieldName = "function" + Integer.toHexString(method.hashCode());
                 CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
@@ -450,8 +450,10 @@ public final class JNRASMRuntime {
                     else startLabel = endLabel = handlerLabel = null;
 
                     methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, proxyInternalName + "$ffi", "INSTANCE", "L" + proxyInternalName + "$ffi;");
-                    for (int i = 0; i < parameterTypes.length; i ++) {
-                        dumpLoadOpcode(methodVisitor, parameterTypes[i], 1 + i);
+                    int index = 0;
+                    for (Class<?> parameterType : parameterTypes) {
+                        dumpLoadOpcode(methodVisitor, parameterType, 1 + index ++);
+                        if (parameterType == long.class || parameterType == double.class) index ++;
                     }
                     methodVisitor.visitMethodInsn(Opcodes.INVOKEINTERFACE, proxyInternalName + "$ffi", methodFieldName, methodDescriptor, true);
                     if (saveErrno) {

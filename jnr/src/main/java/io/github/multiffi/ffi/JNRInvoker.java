@@ -176,46 +176,46 @@ public abstract class JNRInvoker {
         public static final JNRInvoker N0 = new FastNumeric(0) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN0(context, function);
+                return objectValue(returnType, INVOKER.invokeN0(context, function));
             }
         };
         public static final JNRInvoker N1 = new FastNumeric(1) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN1(context, function, longValue((Number) args[0]));
+                return objectValue(returnType, INVOKER.invokeN1(context, function, longValue((Number) args[0])));
             }
         };
         public static final JNRInvoker N2 = new FastNumeric(2) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN2(context, function, longValue((Number) args[0]), longValue((Number) args[1]));
+                return objectValue(returnType, INVOKER.invokeN2(context, function, longValue((Number) args[0]), longValue((Number) args[1])));
             }
         };
         public static final JNRInvoker N3 = new FastNumeric(3) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN3(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]));
+                return objectValue(returnType, INVOKER.invokeN3(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2])));
             }
         };
         public static final JNRInvoker N4 = new FastNumeric(4) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN4(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]),
-                        longValue((Number) args[3]));
+                return objectValue(returnType, INVOKER.invokeN4(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]),
+                        longValue((Number) args[3])));
             }
         };
         public static final JNRInvoker N5 = new FastNumeric(5) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN5(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]),
-                        longValue((Number) args[3]), longValue((Number) args[4]));
+                return objectValue(returnType, INVOKER.invokeN5(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]),
+                        longValue((Number) args[3]), longValue((Number) args[4])));
             }
         };
         public static final JNRInvoker N6 = new FastNumeric(6) {
             @Override
             public Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args) {
-                return INVOKER.invokeN6(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]),
-                        longValue((Number) args[3]), longValue((Number) args[4]), longValue((Number) args[5]));
+                return objectValue(returnType, INVOKER.invokeN6(context, function, longValue((Number) args[0]), longValue((Number) args[1]), longValue((Number) args[2]),
+                        longValue((Number) args[3]), longValue((Number) args[4]), longValue((Number) args[5])));
             }
         };
 
@@ -247,6 +247,12 @@ public abstract class JNRInvoker {
             else if (number instanceof Float) return Float.floatToRawIntBits(number.floatValue()) & 0xFFFFFFFFL;
             else if (number instanceof Double) return Double.doubleToRawLongBits(number.doubleValue());
             else return number.longValue();
+        }
+        private static Object objectValue(ForeignType returnType, long value) {
+            if (returnType == null) return null;
+            else if (returnType == ScalarType.FLOAT) return Float.intBitsToFloat((int) value);
+            else if (returnType == ScalarType.DOUBLE) return Double.longBitsToDouble(value);
+            else return value;
         }
 
     }

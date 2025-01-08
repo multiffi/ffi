@@ -1,0 +1,9 @@
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_22
+
+dependencies {
+    testImplementation project(':core')
+    testImplementation project(':ffm')
+    testImplementation project(':jna')
+    testImplementation project(':jnr')
+}

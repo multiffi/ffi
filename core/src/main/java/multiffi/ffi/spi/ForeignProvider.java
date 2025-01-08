@@ -24,7 +24,7 @@ public abstract class ForeignProvider {
                 try {
                     IMPLEMENTATION = (ForeignProvider) Class
                             .forName(Objects.requireNonNull(System.getProperty("multiffi.foreign.provider")))
-                            .getDeclaredConstructor()
+                            .getConstructor()
                             .newInstance();
                 } catch (Throwable e) {
                     try {
@@ -100,8 +100,8 @@ public abstract class ForeignProvider {
     public FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType... parameterTypes) {
         return downcallHandle(address, -1, returnType, parameterTypes);
     }
-    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
-                                            long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
+                               long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         Objects.requireNonNull(clazz);
         boolean hasMethod = false;
         for (Method method : clazz.getMethods()) {
@@ -133,27 +133,27 @@ public abstract class ForeignProvider {
             }
         });
     }
-    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallInterface(classLoader, clazz, address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallProxy(classLoader, clazz, address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
     }
-    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz,
-                                   long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return downcallInterface(classLoader, clazz, address, -1, returnType, parameterTypes, options);
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
+                               long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallProxy(classLoader, clazz, address, -1, returnType, parameterTypes, options);
     }
-    public <T> T downcallInterface(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallInterface(classLoader, clazz, address, -1, returnType, parameterTypes);
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallProxy(classLoader, clazz, address, -1, returnType, parameterTypes);
     }
-    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return downcallInterface(null, clazz, address, firstVararg, returnType, parameterTypes, options);
+    public <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallProxy(null, clazz, address, firstVararg, returnType, parameterTypes, options);
     }
-    public <T> T downcallInterface(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallInterface(null, clazz, address, firstVararg, returnType, parameterTypes);
+    public <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallProxy(null, clazz, address, firstVararg, returnType, parameterTypes);
     }
-    public <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return downcallInterface(null, clazz, address, returnType, parameterTypes, options);
+    public <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallProxy(null, clazz, address, returnType, parameterTypes, options);
     }
-    public <T> T downcallInterface(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallInterface(null, clazz, address, returnType, parameterTypes);
+    public <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallProxy(null, clazz, address, returnType, parameterTypes);
     }
     public abstract Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor);
     public Object downcallProxy(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
@@ -165,6 +165,18 @@ public abstract class ForeignProvider {
     }
     public <T> T downcallProxy(Class<T> clazz, CallOptionVisitor callOptionVisitor) {
         return downcallProxy(null, clazz, callOptionVisitor);
+    }
+    public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes) {
+        return downcallProxy(classLoader, classes, null);
+    }
+    public Object downcallProxy(Class<?>[] classes) {
+        return downcallProxy(classes, null);
+    }
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
+        return downcallProxy(classLoader, clazz, null);
+    }
+    public <T> T downcallProxy(Class<T> clazz) {
+        return downcallProxy(clazz, null);
     }
     public abstract long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
     public long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {

@@ -1,5 +1,6 @@
 package io.github.multiffi.ffi;
 
+import com.sun.jna.Function;
 import com.sun.jna.Library;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.SymbolProvider;
@@ -33,6 +34,13 @@ public final class JNAASMRuntime {
     public static NativeLibrary getNativeLibrary(Map<String, Long> functionMap) {
         return NativeLibrary.getInstance(null, Collections.singletonMap(Library.OPTION_SYMBOL_PROVIDER,
                 (SymbolProvider) (handle, name, parent) -> functionMap.get(name)));
+    }
+
+    public static NativeLibrary getStdCallNativeLibrary(Map<String, Long> functionMap) {
+        Map<String, Object> optionMap = new HashMap<>(2);
+        optionMap.put(Library.OPTION_SYMBOL_PROVIDER, (SymbolProvider) (handle, name, parent) -> functionMap.get(name));
+        optionMap.put(Library.OPTION_CALLING_CONVENTION, Function.ALT_CONVENTION);
+        return NativeLibrary.getInstance(null, Collections.unmodifiableMap(optionMap));
     }
 
     private static final class ClassCheckerMethodHolder {
@@ -175,7 +183,7 @@ public final class JNAASMRuntime {
         Map<String, Long> directMethodMap = new HashMap<>();
         for (Class<?> clazz : classes) {
             for (Method method : clazz.getMethods()) {
-                if (method.isDefault() || method.getDeclaringClass() == Object.class) continue;
+                if (method.isDefault() || method.getDeclaringClass() == Object.class || Modifier.isStatic(method.getModifiers())) continue;
                 String methodName = method.getName();
                 String methodFieldName = "function" + Integer.toHexString(method.hashCode());
                 CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
@@ -417,8 +425,10 @@ public final class JNAASMRuntime {
                     }
                     else startLabel = endLabel = handlerLabel = null;
 
-                    for (int i = 0; i < parameterTypes.length; i ++) {
-                        dumpLoadOpcode(methodVisitor, parameterTypes[i], 1 + i);
+                    int index = 0;
+                    for (Class<?> parameterType : parameterTypes) {
+                        dumpLoadOpcode(methodVisitor, parameterType, 1 + index ++);
+                        if (parameterType == long.class || parameterType == double.class) index ++;
                     }
                     methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC, proxyInternalName, methodFieldName, methodDescriptor, false);
                     if (saveErrno) {
