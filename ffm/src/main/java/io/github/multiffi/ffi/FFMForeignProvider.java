@@ -41,7 +41,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -411,7 +411,7 @@ public class FFMForeignProvider extends ForeignProvider {
                 " referenced from a method is not visible from class loader: " + classLoader);
     }
 
-    private static final AtomicInteger nextSerialNumber = new AtomicInteger();
+    private static final AtomicLong nextSerialNumber = new AtomicLong();
     @Override
     public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
         if (classes.length == 0) return null;

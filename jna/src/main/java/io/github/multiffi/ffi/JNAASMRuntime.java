@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class JNAASMRuntime {
 
@@ -150,7 +150,7 @@ public final class JNAASMRuntime {
         return defineClass(classLoader, name, bytecode, 0, bytecode.length, null);
     }
 
-    private static final AtomicInteger nextSerialNumber = new AtomicInteger();
+    private static final AtomicLong nextSerialNumber = new AtomicLong();
     public static Object generateProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
         if (classes.length == 0) return null;
         else if (classes.length > 65535) throw new IllegalArgumentException("interface limit exceeded: " + classes.length);
