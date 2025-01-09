@@ -40,6 +40,15 @@ import java.util.Set;
 
 public class JNAForeignProvider extends ForeignProvider {
 
+    public JNAForeignProvider() {
+        this(false);
+    }
+
+    private final boolean noasm;
+    public JNAForeignProvider(boolean noasm) {
+        this.noasm = noasm;
+    }
+
     @Override
     public long addressSize() {
         return Native.POINTER_SIZE;
@@ -206,7 +215,7 @@ public class JNAForeignProvider extends ForeignProvider {
         Objects.requireNonNull(libraryFile);
         try {
             synchronized (NativeLibraryHolder.NATIVE_LIBRARIES) {
-                NativeLibraryHolder.NATIVE_LIBRARIES.add(NativeLibrary.getInstance(libraryFile.getAbsolutePath()));
+                NativeLibraryHolder.NATIVE_LIBRARIES.add(NativeLibrary.getInstance(libraryFile.getAbsoluteFile().getAbsolutePath()));
             }
         }
         catch (UnsatisfiedLinkError e) {
@@ -329,7 +338,9 @@ public class JNAForeignProvider extends ForeignProvider {
 
     @Override
     public String mapLibraryName(String libraryName) {
-        return JNAUtil.mapLibraryName(libraryName);
+        if (libraryName == null) return null;
+        else if (new File(libraryName).isAbsolute()) return libraryName;
+        else return JNAUtil.mapLibraryName(libraryName);
     }
 
     @Override
@@ -483,7 +494,7 @@ public class JNAForeignProvider extends ForeignProvider {
         }
         if (classes.length == 0) return null;
         else {
-            if (JNAUtil.ASM_AVAILABLE) {
+            if (!noasm && JNAUtil.ASM_AVAILABLE) {
                 try {
                     return JNAASMRuntime.generateProxy(classLoader, classes, callOptionVisitor);
                 }

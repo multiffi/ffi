@@ -209,11 +209,15 @@ public class FFMForeignProvider extends ForeignProvider {
     @Override
     public void loadLibrary(String libraryName) throws IOException {
         Objects.requireNonNull(libraryName);
-        try {
-            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName), Arena.global())));
-        }
-        catch (IllegalArgumentException e) {
-            throw new IOException(e.getMessage());
+        File libraryFile = new File(libraryName);
+        if (libraryFile.isAbsolute()) loadLibrary(libraryFile);
+        else {
+            try {
+                SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName), Arena.global())));
+            }
+            catch (IllegalArgumentException e) {
+                throw new IOException(e.getMessage());
+            }
         }
     }
 
@@ -221,7 +225,7 @@ public class FFMForeignProvider extends ForeignProvider {
     public void loadLibrary(File libraryFile) throws IOException {
         Objects.requireNonNull(libraryFile);
         try {
-            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryFile.getAbsoluteFile().getAbsolutePath()), Arena.global())));
+            SymbolLookupHolder.GLOBAL_LOOKUP_REFERENCE.getAndUpdate(lookup -> lookup.or(SymbolLookup.libraryLookup(libraryFile.getAbsoluteFile().getAbsolutePath(), Arena.global())));
         }
         catch (IllegalArgumentException e) {
             throw new IOException(e.getMessage());
@@ -283,6 +287,7 @@ public class FFMForeignProvider extends ForeignProvider {
     @Override
     public String mapLibraryName(String libraryName) {
         if (libraryName == null) return null;
+        else if (new File(libraryName).isAbsolute()) return libraryName;
         else return LibraryNameMapperHolder.libraryNameMapperFunction.apply(libraryName);
     }
 

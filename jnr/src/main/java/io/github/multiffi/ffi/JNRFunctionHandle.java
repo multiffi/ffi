@@ -165,6 +165,7 @@ public class JNRFunctionHandle extends FunctionHandle {
         return types;
     }
 
+    private static final Object[] EMPTY_ARGUMENTS = new Object[0];
     @Override
     public Object invoke(Object... args) {
         try {
@@ -202,7 +203,7 @@ public class JNRFunctionHandle extends FunctionHandle {
                 JNRInvoker invoker = JNRInvoker.getSupportedInvoker(context, returnType, parameterTypes, convention);
                 return invoker.invoke(context, returnType, parameterTypes, address, args);
             }
-            else return invoker.invoke(context, returnType, parameterTypes, address, args.clone());
+            else return invoker.invoke(context, returnType, parameterTypes, address, args == null ? EMPTY_ARGUMENTS : args.clone());
         }
         finally {
             if (saveErrno) JNRLastErrno.dump();

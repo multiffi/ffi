@@ -5,7 +5,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group = 'multiffi'
-    version = '1.0-SNAPSHOT'
+    version = '1.0.0'
 
     repositories {
         mavenCentral()
@@ -18,6 +18,58 @@ subprojects {
 
     test {
         useJUnitPlatform()
+    }
+
+}
+
+configure ([project(':core'), project(':ffm'), project(':jna'), project(':jnr')]) {
+
+    apply plugin: 'signing'
+    apply plugin: 'maven-publish'
+
+    tasks.withType(Javadoc).configureEach { enabled = false }
+
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                groupId = 'io.github.multiffi'
+                artifactId = "multiffi-ffi-${project.name}"
+                version = version
+                from components.java
+                pom {
+                    name = 'io.github.multiffi'
+                    description = project.description
+                    url = 'https://github.com/multiffi/ffi'
+                    licenses {
+                        license {
+                            name = 'BSD 3-Clause \"New\" or \"Revised\" License'
+                            url = 'http://opensource.org/licenses/BSD-3-Clause'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = 'Tianscar'
+                            name = 'Naoko Mitsurugi'
+                            email = 'tianscar@protonmail.com'
+                        }
+                    }
+                    scm {
+                        connection = 'scm:git:git@github.com/multiffi/ffi.git'
+                        developerConnection = 'scm:git:git@github.com/multiffi/ffi.git'
+                        url = 'https://github.com/multiffi/ffi'
+                    }
+                }
+            }
+        }
+    }
+
+    signing {
+        sign(publishing.publications.mavenJava)
     }
 
 }

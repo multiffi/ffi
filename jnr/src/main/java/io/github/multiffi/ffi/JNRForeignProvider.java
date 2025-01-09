@@ -40,6 +40,15 @@ import java.util.Objects;
 
 public class JNRForeignProvider extends ForeignProvider {
 
+    public JNRForeignProvider() {
+        this(false);
+    }
+
+    private final boolean noasm;
+    public JNRForeignProvider(boolean noasm) {
+        this.noasm = noasm;
+    }
+
     @Override
     public long addressSize() {
         return JNRUtil.UnsafeHolder.RUNTIME.addressSize();
@@ -205,7 +214,9 @@ public class JNRForeignProvider extends ForeignProvider {
 
     @Override
     public String mapLibraryName(String libraryName) {
-        if (JNRUtil.PLATFORM.getOS() == Platform.OS.AIX) {
+        if (libraryName == null) return null;
+        else if (new File(libraryName).isAbsolute()) return libraryName;
+        else if (JNRUtil.PLATFORM.getOS() == Platform.OS.AIX) {
             if ("lib.*\\.(so|a\\(shr.o\\)|a\\(shr_64.o\\)|a|so.[\\.0-9]+)$".matches(libraryName)) return libraryName;
             else return "lib" + libraryName + ".a";
         }
@@ -411,7 +422,7 @@ public class JNRForeignProvider extends ForeignProvider {
         }
         if (classes.length == 0) return null;
         else {
-            if (JNRUtil.ASM_AVAILABLE) {
+            if (!noasm && JNRUtil.ASM_AVAILABLE) {
                 try {
                     return JNRASMRuntime.generateProxy(classLoader, classes, callOptionVisitor);
                 }
