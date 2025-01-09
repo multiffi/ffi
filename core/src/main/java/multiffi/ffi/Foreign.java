@@ -249,4 +249,8 @@ public final class Foreign {
         return IMPLEMENTATION.upcallStub(object, method, returnType, parameterTypes);
     }
 
+    public static Runnable registerCleaner(Object object, Runnable cleanup) {
+        return IMPLEMENTATION.registerCleaner(object, cleanup);
+    }
+
 }

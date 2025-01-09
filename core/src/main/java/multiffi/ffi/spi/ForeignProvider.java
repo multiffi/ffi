@@ -189,4 +189,6 @@ public abstract class ForeignProvider {
         return upcallStub(object, method, -1, returnType, parameterTypes);
     }
 
+    public abstract Runnable registerCleaner(Object object, Runnable cleanup);
+
 }

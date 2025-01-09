@@ -18,8 +18,7 @@ import java.nio.charset.Charset;
  * <p>This class provides operations on a block of memory.
  * {@code MemoryHandle} instances will either represent direct
  * memory (that is, a fixed address in the process address space,
- * directly accessible by native code), or backed by at least one
- * Java <code>byte</code> array.
+ * directly accessible by native code), or backed by a Java array.
  * See {@link #isDirect()}, {@link #hasArray()} for more information.
  */
 public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoCloseable {

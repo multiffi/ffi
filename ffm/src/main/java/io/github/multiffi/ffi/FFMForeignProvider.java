@@ -1314,7 +1314,7 @@ public class FFMForeignProvider extends ForeignProvider {
             throw new UnsupportedOperationException();
         }
         public static final Cleaner CLEANER = Cleaner.create(runnable -> {
-            Thread thread = new Thread(runnable, "MultiFFI/FFM Cleaner Thread");
+            Thread thread = new Thread(runnable, "Multiffi/FFI FFM Cleaner Thread");
             thread.setDaemon(true);
             return thread;
         });
@@ -1368,6 +1368,11 @@ public class FFMForeignProvider extends ForeignProvider {
                 linkerOptions).address();
         CleanerHolder.CLEANER.register(object, arena::close);
         return address;
+    }
+
+    @Override
+    public Runnable registerCleaner(Object object, Runnable cleanup) {
+        return CleanerHolder.CLEANER.register(object, cleanup)::clean;
     }
 
 }

@@ -529,4 +529,9 @@ public class JNRForeignProvider extends ForeignProvider {
         return handle.getAddress();
     }
 
+    @Override
+    public Runnable registerCleaner(Object object, Runnable cleanup) {
+        return Cleaner.register(object, cleanup);
+    }
+
 }

@@ -1,7 +1,6 @@
 package io.github.multiffi.ffi;
 
 import com.sun.jna.Function;
-import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import multiffi.ffi.CallOption;
 import multiffi.ffi.Foreign;

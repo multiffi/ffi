@@ -601,4 +601,9 @@ public class JNAForeignProvider extends ForeignProvider {
         return Pointer.nativeValue(CallbackReference.getFunctionPointer(callback));
     }
 
+    @Override
+    public Runnable registerCleaner(Object object, Runnable cleanup) {
+        return Cleaner.getCleaner().register(Objects.requireNonNull(object), Objects.requireNonNull(cleanup))::clean;
+    }
+
 }

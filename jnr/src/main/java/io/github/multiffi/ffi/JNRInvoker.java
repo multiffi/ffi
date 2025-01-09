@@ -86,9 +86,10 @@ public abstract class JNRInvoker {
                     || type == Type.SINT || type == Type.UINT || type == Type.SLONG || type == Type.ULONG || type == Type.POINTER);
         }
         private static int intValue(Number number) {
-            if (number instanceof Byte) return number.byteValue() & 0xFF;
+            if (number instanceof Integer) return (Integer) number;
+            else if (number instanceof Byte) return number.byteValue() & 0xFF;
             else if (number instanceof Short) return number.shortValue() & 0xFFFF;
-            else return number.intValue();
+            else throw new IllegalStateException("Unexpected exception");
         }
         
     }
@@ -163,10 +164,11 @@ public abstract class JNRInvoker {
                     || type == Type.SLONG_LONG || type == Type.ULONG_LONG;
         }
         private static long longValue(Number number) {
-            if (number instanceof Byte) return number.byteValue() & 0xFFL;
-            else if (number instanceof Short) return number.shortValue() & 0xFFFFL;
+            if (number instanceof Long) return (Long) number;
             else if (number instanceof Integer) return number.intValue() & 0xFFFFFFFFL;
-            else return number.longValue();
+            else if (number instanceof Byte) return number.byteValue() & 0xFFL;
+            else if (number instanceof Short) return number.shortValue() & 0xFFFFL;
+            else throw new IllegalStateException("Unexpected exception");
         }
 
     }
@@ -241,12 +243,13 @@ public abstract class JNRInvoker {
                     || type == Type.SLONG_LONG || type == Type.ULONG_LONG || type == Type.FLOAT || type == Type.DOUBLE;
         }
         private static long longValue(Number number) {
-            if (number instanceof Byte) return number.byteValue() & 0xFFL;
-            else if (number instanceof Short) return number.shortValue() & 0xFFFFL;
-            else if (number instanceof Integer) return number.intValue() & 0xFFFFFFFFL;
-            else if (number instanceof Float) return Float.floatToRawIntBits(number.floatValue()) & 0xFFFFFFFFL;
+            if (number instanceof Float) return Float.floatToRawIntBits(number.floatValue()) & 0xFFFFFFFFL;
             else if (number instanceof Double) return Double.doubleToRawLongBits(number.doubleValue());
-            else return number.longValue();
+            else if (number instanceof Long) return (Long) number;
+            else if (number instanceof Integer) return number.intValue() & 0xFFFFFFFFL;
+            else if (number instanceof Byte) return number.byteValue() & 0xFFL;
+            else if (number instanceof Short) return number.shortValue() & 0xFFFFL;
+            else throw new IllegalStateException("Unexpected exception");
         }
         private static Object objectValue(ForeignType returnType, long value) {
             if (returnType == null) return null;
