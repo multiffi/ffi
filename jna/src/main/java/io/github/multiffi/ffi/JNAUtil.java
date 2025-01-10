@@ -181,30 +181,32 @@ final class JNAUtil {
         return false;
     }
 
-    public static Object invoke(Object returnType, Function function, long address, int callFlags, Object... args) {
+    private static final JNAAccessor.NativeAccessor NATIVE = JNAAccessor.getNativeAccessor();
+    public static Object invoke(Object returnType, Function function, int callFlags, Object... args) {
+        long address = Pointer.nativeValue(function);
         if (returnType == null || returnType == void.class || returnType == Void.class) {
-            JNAAccessor.getNativeAccessor().invokeVoid(function, address, callFlags, args);
+            NATIVE.invokeVoid(function, address, callFlags, args);
             return null;
         }
         else if (returnType == boolean.class || returnType == Boolean.class)
-            return JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args) != 0;
+            return NATIVE.invokeInt(function, address, callFlags, args) != 0;
         else if (returnType == byte.class || returnType == Byte.class)
-            return (byte) JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
+            return (byte) NATIVE.invokeInt(function, address, callFlags, args);
         else if (returnType == short.class || returnType == Short.class)
-            return (short) JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
+            return (short) NATIVE.invokeInt(function, address, callFlags, args);
         else if (returnType == int.class || returnType == Integer.class)
-            return JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
+            return NATIVE.invokeInt(function, address, callFlags, args);
         else if (returnType == long.class || returnType == Long.class)
-            return JNAAccessor.getNativeAccessor().invokeLong(function, address, callFlags, args);
+            return NATIVE.invokeLong(function, address, callFlags, args);
         else if (returnType == float.class || returnType == Float.class)
-            return JNAAccessor.getNativeAccessor().invokeFloat(function, address, callFlags, args);
+            return NATIVE.invokeFloat(function, address, callFlags, args);
         else if (returnType == double.class || returnType == Double.class)
-            return JNAAccessor.getNativeAccessor().invokeDouble(function, address, callFlags, args);
+            return NATIVE.invokeDouble(function, address, callFlags, args);
         else if (returnType == char.class || returnType == Character.class)
-            return (char) JNAAccessor.getNativeAccessor().invokeInt(function, address, callFlags, args);
+            return (char) NATIVE.invokeInt(function, address, callFlags, args);
         else if (returnType == Pointer.class)
-            return JNAAccessor.getNativeAccessor().invokePointer(function, address, callFlags, args);
-        else return JNAAccessor.getNativeAccessor().invokeStructure((Structure) returnType, function, address, callFlags, args);
+            return NATIVE.invokePointer(function, address, callFlags, args);
+        else return NATIVE.invokeStructure((Structure) returnType, function, address, callFlags, args);
     }
 
     public static void checkType(ForeignType type, Class<?> clazz) {
