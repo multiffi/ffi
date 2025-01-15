@@ -1,17 +1,35 @@
 package multiffi.ffi;
 
-import multiffi.ffi.spi.AllocatorProvider;
+import multiffi.ffi.spi.MemoryProvider;
 
 import java.nio.charset.Charset;
 
-public final class Allocator {
+public final class Memory {
 
-    private Allocator() {
-        throw new AssertionError("No multiffi.ffi.Allocator instances for you!");
+    private Memory() {
+        throw new AssertionError("No multiffi.ffi.Memory instances for you!");
     }
 
-    private static final AllocatorProvider IMPLEMENTATION = AllocatorProvider.getImplementation();
+    private static final MemoryProvider IMPLEMENTATION = MemoryProvider.getImplementation();
 
+    public static void pushStack() {
+        IMPLEMENTATION.pushStack();
+    }
+    public static void popStack() {
+        IMPLEMENTATION.popStack();
+    }
+    public static long allocateOnStack(long size) {
+        return IMPLEMENTATION.allocateOnStack(size);
+    }
+    public static long allocateInitializedOnStack(long count, long size) {
+        return IMPLEMENTATION.allocateInitializedOnStack(count, size);
+    }
+    public static long allocateAlignedOnStack(long size, long alignment) {
+        return IMPLEMENTATION.allocateAlignedOnStack(size, alignment);
+    }
+    public static long allocateInitializedAlignedOnStack(long count, long size, long alignment) {
+        return IMPLEMENTATION.allocateInitializedAlignedOnStack(count, size, alignment);
+    }
     public static long allocate(long size) {
         return IMPLEMENTATION.allocate(size);
     }
@@ -23,6 +41,18 @@ public final class Allocator {
     }
     public static void free(long address) {
         IMPLEMENTATION.free(address);
+    }
+    public static long allocateAligned(long size, long alignment) {
+        return IMPLEMENTATION.allocateAligned(size, alignment);
+    }
+    public static long allocateInitializedAligned(long count, long size, long alignment) {
+        return IMPLEMENTATION.allocateInitializedAligned(count, size, alignment);
+    }
+    public static long reallocateAligned(long address, long size, long alignment) {
+        return IMPLEMENTATION.reallocateAligned(address, size, alignment);
+    }
+    public static void freeAligned(long address) {
+        IMPLEMENTATION.freeAligned(address);
     }
 
     public static long search(long address, byte value, long maxLength) {

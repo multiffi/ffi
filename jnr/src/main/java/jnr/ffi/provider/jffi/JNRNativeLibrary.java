@@ -1,7 +1,7 @@
 package jnr.ffi.provider.jffi;
 
-import io.github.multiffi.ffi.JNRLibraryLookup;
 import jnr.ffi.LibraryOption;
+import multiffi.ffi.Foreign;
 
 import java.util.Collections;
 import java.util.Map;
@@ -21,7 +21,7 @@ public class JNRNativeLibrary extends NativeLibrary {
 
     @Override
     long getSymbolAddress(String name) {
-        return functionMap == null ? JNRLibraryLookup.getSymbolAddress(name) : functionMap.get(name);
+        return functionMap == null ? Foreign.getSymbolAddress(name) : functionMap.get(name);
     }
 
 }

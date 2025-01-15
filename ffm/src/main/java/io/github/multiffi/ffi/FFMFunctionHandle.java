@@ -6,9 +6,6 @@ import multiffi.ffi.FunctionHandle;
 import multiffi.ffi.MemoryHandle;
 import multiffi.ffi.ScalarType;
 import multiffi.ffi.StandardCallOption;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -18,16 +15,13 @@ import java.lang.foreign.SegmentAllocator;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -43,111 +37,120 @@ public class FFMFunctionHandle extends FunctionHandle {
     private final boolean trivial;
     private final boolean saveErrno;
 
-    private static final Linker.Option[] EMPTY_OPTION_ARRAY = new Linker.Option[0];
-    public FFMFunctionHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public FFMFunctionHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         this.address = address;
         boolean dyncall = false;
         boolean saveErrno = false;
         boolean critical = false;
         boolean trivial = false;
-        Set<Linker.Option> linkerOptions = new HashSet<>(3);
-        for (CallOption option : options) {
-            switch (option) {
-                case StandardCallOption.DYNCALL:
-                    dyncall = true;
-                    break;
-                case StandardCallOption.SAVE_ERRNO:
-                    saveErrno = true;
-                    linkerOptions.add(Linker.Option.captureCallState(FFMLastErrno.name()));
-                    break;
-                case StandardCallOption.TRIVIAL:
-                    trivial = true;
-                case StandardCallOption.CRITICAL:
-                    critical = true;
-                    break;
-                case StandardCallOption.STDCALL:
-                    break;
-                default:
-                    throw new IllegalArgumentException(option + " not supported");
+        Set<Linker.Option> linkerOptionSet;
+        if (options == null) linkerOptionSet = null;
+        else {
+            linkerOptionSet = new HashSet<>(3);
+            for (CallOption option : options) {
+                switch (option) {
+                    case StandardCallOption.DYNCALL:
+                        dyncall = true;
+                        break;
+                    case StandardCallOption.SAVE_ERRNO:
+                        saveErrno = true;
+                        linkerOptionSet.add(Linker.Option.captureCallState(FFMLastErrno.name()));
+                        break;
+                    case StandardCallOption.TRIVIAL:
+                        trivial = true;
+                    case StandardCallOption.CRITICAL:
+                        critical = true;
+                        break;
+                    case StandardCallOption.STDCALL:
+                        break;
+                    default:
+                        throw new IllegalArgumentException(option + " not supported");
+                }
             }
+            if (saveErrno && critical) critical = trivial = false;
+            if (critical) linkerOptionSet.add(Linker.Option.critical(!trivial));
         }
-        if (saveErrno && critical) critical = trivial = false;
-        if (critical) linkerOptions.add(Linker.Option.critical(!trivial));
         this.dyncall = dyncall;
         this.critical = critical;
         this.trivial = trivial;
         this.saveErrno = saveErrno;
         MemoryLayout returnLayout = returnType == null ? null : FFMUtil.toMemoryLayout(returnType);
-        MemoryLayout[] parameterLayouts = new MemoryLayout[parameterTypes.length];
-        for (int i = 0; i < parameterTypes.length; i ++) {
-            parameterLayouts[i] = FFMUtil.toMemoryLayout(parameterTypes[i]);
+        MemoryLayout[] parameterLayouts;
+        if (parameterTypes == null || parameterTypes.length == 1 && parameterTypes[0] == null) parameterLayouts = FFMUtil.EMPTY_MEMORY_LAYOUT_ARRAY;
+        else {
+            parameterLayouts = new MemoryLayout[parameterTypes.length];
+            for (int i = 0; i < parameterTypes.length; i ++) {
+                parameterLayouts[i] = FFMUtil.toMemoryLayout(parameterTypes[i]);
+            }
         }
+        int parameterCount = parameterLayouts.length;
         boolean addReturnMemoryParameter = returnType != null && returnType.isCompound();
-        List<ForeignType> parameterTypeList = new ArrayList<>(parameterTypes.length + (addReturnMemoryParameter ? 1 : 0));
-        parameterTypeList.addAll(Arrays.asList(parameterTypes));
-        if (addReturnMemoryParameter) parameterTypeList.addFirst(returnType);
         this.returnType = returnType;
-        this.parameterTypes = Collections.unmodifiableList(parameterTypeList);
-        this.firstVarArgIndex = firstVararg >= 0 ? firstVararg : (dyncall ? parameterTypes.length : -1);
-        if (firstVarArgIndex >= 0) linkerOptions.add(Linker.Option.firstVariadicArg(firstVarArgIndex));
+        if (parameterCount == 0) this.parameterTypes = addReturnMemoryParameter ? Collections.singletonList(returnType) : Collections.emptyList();
+        else {
+            List<ForeignType> list = new ArrayList<>(parameterCount + (addReturnMemoryParameter ? 1 : 0));
+            if (addReturnMemoryParameter) list.add(returnType);
+            list.addAll(Arrays.asList(parameterTypes));
+            this.parameterTypes = Collections.unmodifiableList(list);
+        }
+        this.firstVarArgIndex = firstVarArgIndex >= 0 ? Math.min(firstVarArgIndex, parameterCount) : (dyncall ? parameterCount : -1);
+        if (linkerOptionSet != null && this.firstVarArgIndex >= 0) linkerOptionSet.add(Linker.Option.firstVariadicArg(this.firstVarArgIndex));
+        Linker.Option[] linkerOptions = linkerOptionSet == null ? FFMUtil.EMPTY_LINKER_OPTION_ARRAY : linkerOptionSet.toArray(FFMUtil.EMPTY_LINKER_OPTION_ARRAY);
         if (dyncall) {
-            invokeFunction = args -> {
-                if (args.length != parameterTypeList.size() + 1) throw new IllegalArgumentException("Array length mismatch");
-                if (!args[args.length - 1].getClass().isArray())
-                    throw new IllegalArgumentException("Last argument must be array as variadic arguments");
-                Object varargs = args[args.length - 1];
+            if (saveErrno) invokeFunction = args -> {
+                if (args == null || args.length != this.parameterTypes.size() + 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
+                int fixedArgsLength = args.length - 1;
+                Object varargs = args[fixedArgsLength];
+                if (!varargs.getClass().isArray()) throw new IllegalArgumentException("Last argument must be array as variadic arguments");
                 int varargsLength = Array.getLength(varargs);
-                Object[] arguments = new Object[args.length - (FFMFunctionHandle.this.saveErrno ? 0 : 1) + varargsLength];
-                System.arraycopy(args, 0, arguments, FFMFunctionHandle.this.saveErrno ? 1 : 0, args.length - 1);
-                if (varargs instanceof Object[]) {
-                    System.arraycopy(varargs, 0, arguments, args.length - (FFMFunctionHandle.this.saveErrno ? 0 : 1), varargsLength);
-                }
+                Object[] arguments = new Object[args.length + varargsLength];
+                System.arraycopy(args, 0, arguments, 1, fixedArgsLength);
+                if (varargs instanceof Object[]) System.arraycopy(varargs, 0, arguments, args.length, varargsLength);
                 else {
-                    int offset = args.length - (FFMFunctionHandle.this.saveErrno ? 0 : 1);
+                    int offset = args.length;
                     for (int i = 0; i < varargsLength; i ++) {
                         arguments[offset + i] = Array.get(varargs, i);
                     }
                 }
-                if (FFMFunctionHandle.this.saveErrno) arguments[addReturnMemoryParameter ? 1 : 0] = FFMLastErrno.segment();
-                MemoryLayout[] newParameterLayouts = new MemoryLayout[parameterLayouts.length + varargsLength];
-                System.arraycopy(parameterLayouts, 0, newParameterLayouts, 0, parameterLayouts.length);
+                arguments[addReturnMemoryParameter ? 1 : 0] = FFMLastErrno.segment();
+                MemoryLayout[] newParameterLayouts = new MemoryLayout[parameterCount + varargsLength];
+                System.arraycopy(parameterLayouts, 0, newParameterLayouts, 0, parameterCount);
                 for (int i = 0; i < varargsLength; i ++) {
-                    Object vararg = Array.get(varargs, i);
-                    if (vararg instanceof Boolean) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_BOOLEAN;
-                    else if (vararg instanceof Byte) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_BYTE;
-                    else if (vararg instanceof Character) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_CHAR;
-                    else if (vararg instanceof Short) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_SHORT;
-                    else if (vararg instanceof Integer) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_INT;
-                    else if (vararg instanceof Long) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_LONG;
-                    else if (vararg instanceof Float) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_FLOAT;
-                    else if (vararg instanceof Double) newParameterLayouts[parameterLayouts.length + i] = ValueLayout.JAVA_DOUBLE;
+                    Object vararg = arguments[parameterCount + i];
+                    if (vararg instanceof Boolean) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BOOLEAN;
+                    else if (vararg instanceof Byte) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BYTE;
+                    else if (vararg instanceof Character) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_CHAR;
+                    else if (vararg instanceof Short) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_SHORT;
+                    else if (vararg instanceof Integer) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_INT;
+                    else if (vararg instanceof Long) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_LONG;
+                    else if (vararg instanceof Float) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_FLOAT;
+                    else if (vararg instanceof Double) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_DOUBLE;
                     else if (vararg instanceof MemoryHandle memoryHandle) {
                         long size = memoryHandle.size();
                         if (size < 0) {
                             long remaining = size - Long.MAX_VALUE;
-                            newParameterLayouts[parameterLayouts.length + i] =
-                                MemoryLayout.structLayout(MemoryLayout.sequenceLayout(Long.MAX_VALUE, ValueLayout.JAVA_BYTE),
-                                        MemoryLayout.sequenceLayout(remaining, ValueLayout.JAVA_BYTE));
+                            newParameterLayouts[parameterCount + i] =
+                                    MemoryLayout.structLayout(MemoryLayout.sequenceLayout(Long.MAX_VALUE, ValueLayout.JAVA_BYTE),
+                                            MemoryLayout.sequenceLayout(remaining, ValueLayout.JAVA_BYTE));
                         }
-                        else newParameterLayouts[parameterLayouts.length + i] =
+                        else newParameterLayouts[parameterCount + i] =
                                 MemoryLayout.structLayout(MemoryLayout.sequenceLayout(size, ValueLayout.JAVA_BYTE));
                     }
                     else throw new IllegalArgumentException("Illegal argument: " + vararg);
                 }
-                MethodHandle methodHandle = FFMUtil.ABIHolder.LINKER.downcallHandle(MemorySegment.ofAddress(address), returnType == null ?
-                        FunctionDescriptor.ofVoid(newParameterLayouts) : FunctionDescriptor.of(returnLayout, newParameterLayouts),
-                        linkerOptions.toArray(EMPTY_OPTION_ARRAY));
-                for (int i = (addReturnMemoryParameter ? 1 : 0); i < parameterTypeList.size(); i ++) {
-                    ForeignType parameterType = parameterTypeList.get(i);
-                    if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), false);
-                    else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), false);
-                    else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), false);
-                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), false);
+                MethodHandle methodHandle = FFMUtil.LINKER.downcallHandle(MemorySegment.ofAddress(address), returnType == null ?
+                                FunctionDescriptor.ofVoid(newParameterLayouts) : FunctionDescriptor.of(returnLayout, newParameterLayouts), linkerOptions);
+                for (int i = (addReturnMemoryParameter ? 1 : 0); i < this.parameterTypes.size(); i ++) {
+                    ForeignType parameterType = this.parameterTypes.get(i);
+                    if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i + 1, false);
+                    else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i + 1, false);
+                    else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i + 1, false);
+                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i + 1, false);
                     else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
-                            .filterArguments(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), FFMMethodFilters.INT64_TO_SEGMENT);
-                    else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), false);
+                            .filterArguments(methodHandle, i + 1, FFMMethodFilters.INT64_TO_SEGMENT);
+                    else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i + 1, false);
                     else if (parameterType.isCompound()) methodHandle = MethodHandles
-                            .filterArguments(methodHandle, i + (FFMFunctionHandle.this.saveErrno ? 1 : 0), FFMMethodFilters.HANDLE_TO_SEGMENT);
+                            .filterArguments(methodHandle, i + 1, FFMMethodFilters.HANDLE_TO_SEGMENT);
                 }
                 if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, false);
@@ -155,14 +158,90 @@ public class FFMFunctionHandle extends FunctionHandle {
                 else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.SEGMENT_TO_INT64);
                 else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, false);
-                Invoker invoker = getInvoker(arguments.length);
+                Invoker invoker = FFMASMRuntime.generateInvoker(arguments.length);
                 Object result;
                 try {
                     if (addReturnMemoryParameter) {
                         result = args[0];
-                        arguments[0] = SegmentAllocator
-                                .slicingAllocator((MemorySegment) FFMMethodFilters.HANDLE_TO_SEGMENT
-                                        .invokeExact((MemoryHandle) result));
+                        arguments[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment((MemoryHandle) result));
+                        invoker.invoke(methodHandle, arguments);
+                    }
+                    else result = invoker.invoke(methodHandle, arguments);
+                } catch (ClassCastException | WrongMethodTypeException e) {
+                    throw new IllegalArgumentException(e);
+                } catch (RuntimeException | Error e) {
+                    throw e;
+                } catch (Throwable e) {
+                    throw new IllegalStateException(e);
+                }
+                return result;
+            };
+            else invokeFunction = args -> {
+                if (args == null || args.length != this.parameterTypes.size() + 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
+                int fixedArgsLength = args.length - 1;
+                Object varargs = args[fixedArgsLength];
+                if (!varargs.getClass().isArray()) throw new IllegalArgumentException("Last argument must be array as variadic arguments");
+                int varargsLength = Array.getLength(varargs);
+                Object[] arguments = new Object[fixedArgsLength + varargsLength];
+                System.arraycopy(args, 0, arguments, 0, fixedArgsLength);
+                if (varargs instanceof Object[]) System.arraycopy(varargs, 0, arguments, fixedArgsLength, varargsLength);
+                else {
+                    int offset = fixedArgsLength;
+                    for (int i = 0; i < varargsLength; i ++) {
+                        arguments[offset + i] = Array.get(varargs, i);
+                    }
+                }
+                MemoryLayout[] newParameterLayouts = new MemoryLayout[parameterCount + varargsLength];
+                System.arraycopy(parameterLayouts, 0, newParameterLayouts, 0, parameterCount);
+                for (int i = 0; i < varargsLength; i ++) {
+                    Object vararg = arguments[parameterCount + i];
+                    if (vararg instanceof Boolean) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BOOLEAN;
+                    else if (vararg instanceof Byte) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BYTE;
+                    else if (vararg instanceof Character) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_CHAR;
+                    else if (vararg instanceof Short) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_SHORT;
+                    else if (vararg instanceof Integer) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_INT;
+                    else if (vararg instanceof Long) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_LONG;
+                    else if (vararg instanceof Float) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_FLOAT;
+                    else if (vararg instanceof Double) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_DOUBLE;
+                    else if (vararg instanceof MemoryHandle memoryHandle) {
+                        long size = memoryHandle.size();
+                        if (size < 0) {
+                            long remaining = size - Long.MAX_VALUE;
+                            newParameterLayouts[parameterCount + i] =
+                                    MemoryLayout.structLayout(MemoryLayout.sequenceLayout(Long.MAX_VALUE, ValueLayout.JAVA_BYTE),
+                                            MemoryLayout.sequenceLayout(remaining, ValueLayout.JAVA_BYTE));
+                        }
+                        else newParameterLayouts[parameterCount + i] =
+                                MemoryLayout.structLayout(MemoryLayout.sequenceLayout(size, ValueLayout.JAVA_BYTE));
+                    }
+                    else throw new IllegalArgumentException("Illegal argument: " + vararg);
+                }
+                MethodHandle methodHandle = FFMUtil.LINKER.downcallHandle(MemorySegment.ofAddress(address), returnType == null ?
+                                FunctionDescriptor.ofVoid(newParameterLayouts) : FunctionDescriptor.of(returnLayout, newParameterLayouts), linkerOptions);
+                for (int i = (addReturnMemoryParameter ? 1 : 0); i < this.parameterTypes.size(); i ++) {
+                    ForeignType parameterType = this.parameterTypes.get(i);
+                    if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i, false);
+                    else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i, false);
+                    else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i, false);
+                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i, false);
+                    else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
+                            .filterArguments(methodHandle, i, FFMMethodFilters.INT64_TO_SEGMENT);
+                    else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i, false);
+                    else if (parameterType.isCompound()) methodHandle = MethodHandles
+                            .filterArguments(methodHandle, i, FFMMethodFilters.HANDLE_TO_SEGMENT);
+                }
+                if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.SEGMENT_TO_INT64);
+                else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, false);
+                Invoker invoker = FFMASMRuntime.generateInvoker(arguments.length);
+                Object result;
+                try {
+                    if (addReturnMemoryParameter) {
+                        result = args[0];
+                        arguments[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment((MemoryHandle) result));
                         invoker.invoke(methodHandle, arguments);
                     }
                     else result = invoker.invoke(methodHandle, arguments);
@@ -177,11 +256,13 @@ public class FFMFunctionHandle extends FunctionHandle {
             };
         }
         else {
-            MethodHandle methodHandle = FFMUtil.ABIHolder.LINKER.downcallHandle(MemorySegment.ofAddress(address), returnType == null ?
-                            FunctionDescriptor.ofVoid(parameterLayouts) : FunctionDescriptor.of(returnLayout, parameterLayouts),
-                    linkerOptions.toArray(EMPTY_OPTION_ARRAY));
-            for (int i = (addReturnMemoryParameter ? 1 : 0); i < parameterTypeList.size(); i ++) {
-                ForeignType parameterType = parameterTypeList.get(i);
+            MethodHandle methodHandle;
+            if (parameterCount == 0) methodHandle = FFMUtil.LINKER.downcallHandle(MemorySegment.ofAddress(address), returnType == null ?
+                            FunctionDescriptor.ofVoid() : FunctionDescriptor.of(returnLayout), linkerOptions);
+            else methodHandle = FFMUtil.LINKER.downcallHandle(MemorySegment.ofAddress(address), returnType == null ?
+                            FunctionDescriptor.ofVoid(parameterLayouts) : FunctionDescriptor.of(returnLayout, parameterLayouts), linkerOptions);
+            for (int i = (addReturnMemoryParameter ? 1 : 0); i < this.parameterTypes.size(); i ++) {
+                ForeignType parameterType = this.parameterTypes.get(i);
                 if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
                 else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
                 else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
@@ -198,17 +279,63 @@ public class FFMFunctionHandle extends FunctionHandle {
             else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, false);
             else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.SEGMENT_TO_INT64);
             else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, false);
-            Invoker invoker = getInvoker(parameterTypeList.size() + (saveErrno ? 1 : 0));
+            Invoker invoker = FFMASMRuntime.generateInvoker(this.parameterTypes.size() + (saveErrno ? 1 : 0));
             MethodHandle function = methodHandle;
             if (addReturnMemoryParameter) {
-                if (saveErrno) invokeFunction = args -> {
-                    if (args.length != parameterTypeList.size()) throw new IndexOutOfBoundsException("Array length mismatch");
+                if (saveErrno) {
+                    if (parameterCount == 0) invokeFunction = args -> {
+                        if (args == null || args.length != 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
+                        MemoryHandle result = (MemoryHandle) args[0];
+                        try {
+                            invoker.invoke(function, SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result)), FFMLastErrno.segment());
+                            return result;
+                        } catch (ClassCastException | WrongMethodTypeException e) {
+                            throw new IllegalArgumentException(e);
+                        } catch (RuntimeException | Error e) {
+                            throw e;
+                        } catch (Throwable e) {
+                            throw new IllegalStateException(e);
+                        }
+                    };
+                    else invokeFunction = args -> {
+                        if (args == null || args.length != parameterCount + 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
+                        MemoryHandle result = (MemoryHandle) args[0];
+                        try {
+                            Object[] arguments = new Object[parameterCount + 2];
+                            arguments[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result));
+                            arguments[1] = FFMLastErrno.segment();
+                            System.arraycopy(args, 1, arguments, 2, parameterCount);
+                            invoker.invoke(function, arguments);
+                            return result;
+                        } catch (ClassCastException | WrongMethodTypeException e) {
+                            throw new IllegalArgumentException(e);
+                        } catch (RuntimeException | Error e) {
+                            throw e;
+                        } catch (Throwable e) {
+                            throw new IllegalStateException(e);
+                        }
+                    };
+                }
+                else if (parameterCount == 0) invokeFunction = args -> {
+                    if (args == null || args.length != 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
                     MemoryHandle result = (MemoryHandle) args[0];
                     try {
-                        Object[] arguments = new Object[args.length + 1];
+                        invoker.invoke(function, SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result)));
+                        return result;
+                    } catch (ClassCastException | WrongMethodTypeException e) {
+                        throw new IllegalArgumentException(e);
+                    } catch (RuntimeException | Error e) {
+                        throw e;
+                    } catch (Throwable e) {
+                        throw new IllegalStateException(e);
+                    }
+                };
+                else invokeFunction = args -> {
+                    if (args == null || args.length != parameterCount + 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
+                    MemoryHandle result = (MemoryHandle) args[0];
+                    try {
+                        Object[] arguments = args.clone();
                         arguments[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result));
-                        arguments[1] = FFMLastErrno.segment();
-                        System.arraycopy(args, 1, arguments, 2, args.length - 1);
                         invoker.invoke(function, arguments);
                         return result;
                     } catch (ClassCastException | WrongMethodTypeException e) {
@@ -219,13 +346,27 @@ public class FFMFunctionHandle extends FunctionHandle {
                         throw new IllegalStateException(e);
                     }
                 };
-                else invokeFunction = args -> {
-                    if (args.length != parameterTypeList.size()) throw new IndexOutOfBoundsException("Array length mismatch");
-                    MemoryHandle result = (MemoryHandle) args[0];
+            }
+            else if (saveErrno) {
+                if (parameterCount == 0) invokeFunction = args -> {
+                    if (args != null && args.length != 0) throw new ArrayIndexOutOfBoundsException("length mismatch");
                     try {
-                        args[0] = SegmentAllocator.slicingAllocator(FFMMethodFilters.handleToSegment(result));
-                        invoker.invoke(function, args);
-                        return result;
+                        return invoker.invoke(function, FFMLastErrno.segment());
+                    } catch (ClassCastException | WrongMethodTypeException e) {
+                        throw new IllegalArgumentException(e);
+                    } catch (RuntimeException | Error e) {
+                        throw e;
+                    } catch (Throwable e) {
+                        throw new IllegalStateException(e);
+                    }
+                };
+                else invokeFunction = args -> {
+                    if (args == null || args.length != parameterCount) throw new ArrayIndexOutOfBoundsException("length mismatch");
+                    try {
+                        Object[] arguments = new Object[parameterCount + 1];
+                        arguments[0] = FFMLastErrno.segment();
+                        System.arraycopy(args, 0, arguments, 1, parameterCount);
+                        return invoker.invoke(function, arguments);
                     } catch (ClassCastException | WrongMethodTypeException e) {
                         throw new IllegalArgumentException(e);
                     } catch (RuntimeException | Error e) {
@@ -236,13 +377,10 @@ public class FFMFunctionHandle extends FunctionHandle {
                 };
             }
             else {
-                if (saveErrno) invokeFunction = args -> {
-                    if (args.length != parameterTypeList.size()) throw new IndexOutOfBoundsException("Array length mismatch");
+                if (parameterCount == 0) invokeFunction = args -> {
+                    if (args != null && args.length != 0) throw new ArrayIndexOutOfBoundsException("length mismatch");
                     try {
-                        Object[] arguments = new Object[args.length + 1];
-                        arguments[0] = FFMLastErrno.segment();
-                        System.arraycopy(args, 0, arguments, 1, args.length);
-                        return invoker.invoke(function, arguments);
+                        return invoker.invoke(function);
                     } catch (ClassCastException | WrongMethodTypeException e) {
                         throw new IllegalArgumentException(e);
                     } catch (RuntimeException | Error e) {
@@ -252,9 +390,9 @@ public class FFMFunctionHandle extends FunctionHandle {
                     }
                 };
                 else invokeFunction = args -> {
-                    if (args.length != parameterTypeList.size()) throw new IndexOutOfBoundsException("Array length mismatch");
+                    if (args == null || args.length != parameterCount) throw new ArrayIndexOutOfBoundsException("length mismatch");
                     try {
-                        return invoker.invoke(function, args);
+                        return invoker.invoke(function, args.clone());
                     } catch (ClassCastException | WrongMethodTypeException e) {
                         throw new IllegalArgumentException(e);
                     } catch (RuntimeException | Error e) {
@@ -271,70 +409,9 @@ public class FFMFunctionHandle extends FunctionHandle {
         Object invoke(MethodHandle methodHandle, Object... args) throws Throwable;
     }
 
-    private static final Map<Integer, Invoker> INVOKERS = new HashMap<>(255);
-
-    private static final String[] INVOKER_EXCEPTIONS = new String[] { "java/lang/Throwable" };
-    private static final String[] INVOKER_INTERFACES = new String[] { "io/github/multiffi/ffi/FFMFunctionHandle$Invoker" };
-    public static Invoker getInvoker(int length) {
-        if (length > 255) throw new IllegalArgumentException("parameter limit exceeded: " + length);
-        if (!INVOKERS.containsKey(length)) synchronized (INVOKERS) {
-            if (!INVOKERS.containsKey(length)) {
-                ClassLoader classLoader = Invoker.class.getClassLoader();
-                String proxyName = "io.github.multiffi.FFMFunctionHandle$Invoker$" + length;
-                String proxyInternalName = proxyName.replace('.', '/');
-
-                ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
-
-                classWriter.visit(Opcodes.V1_8, Opcodes.ACC_PRIVATE | Opcodes.ACC_SUPER,
-                        proxyInternalName, null, "java/lang/Object", INVOKER_INTERFACES);
-
-                MethodVisitor classInit = classWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                        "<clinit>", "()V", null, null);
-                classInit.visitCode();
-                classInit.visitInsn(Opcodes.RETURN);
-                classInit.visitMaxs(0, 0);
-                classInit.visitEnd();
-
-                MethodVisitor objectInit = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
-                objectInit.visitCode();
-                objectInit.visitVarInsn(Opcodes.ALOAD, 0);
-                objectInit.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-                objectInit.visitInsn(Opcodes.RETURN);
-                objectInit.visitMaxs(0, 0);
-                objectInit.visitEnd();
-
-                MethodVisitor invoke = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "invoke",
-                        "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;", null, INVOKER_EXCEPTIONS);
-                invoke.visitCode();
-                for (int i = 0; i < length; i ++) {
-                    invoke.visitVarInsn(Opcodes.ALOAD, 2);
-                    invoke.visitIntInsn(Opcodes.SIPUSH, i);
-                    invoke.visitInsn(Opcodes.AALOAD);
-                    invoke.visitVarInsn(Opcodes.ASTORE, 3 + i);
-                }
-                invoke.visitVarInsn(Opcodes.ALOAD, 1);
-                for (int i = 0; i < length; i ++) {
-                    invoke.visitVarInsn(Opcodes.ALOAD, 3 + i);
-                }
-                invoke.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/invoke/MethodHandle", "invoke",
-                        "(" + "Ljava/lang/Object;".repeat(length) + ")Ljava/lang/Object;", false);
-                invoke.visitInsn(Opcodes.ARETURN);
-                invoke.visitMaxs(0, 0);
-                invoke.visitEnd();
-
-                classWriter.visitEnd();
-                try {
-                    INVOKERS.put(length, (Invoker) FFMUtil.UnsafeHolder.IMPL_LOOKUP
-                            .findConstructor(FFMUtil.defineClass(classLoader, proxyName, classWriter.toByteArray()),
-                                    MethodType.methodType(void.class)).invoke());
-                } catch (RuntimeException | Error ex) {
-                    throw ex;
-                } catch (Throwable ex) {
-                    throw new IllegalStateException(ex);
-                }
-            }
-        }
-        return INVOKERS.get(length);
+    public static Invoker getInvoker(int parameterCount) {
+        if (FFMUtil.PROXY_INTRINSICS) return FFMASMRuntime.generateInvoker(parameterCount);
+        else return MethodHandle::invokeWithArguments;
     }
 
     @Override

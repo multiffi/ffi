@@ -15,34 +15,14 @@ public class HeapMemoryHandle extends AbstractHeapMemoryHandle {
     public HeapMemoryHandle(Object array, long offset, long size) {
         if (array == null) this.arrayLength = 0;
         else {
-            this.arrayLength = getArrayContentSize(array);
+            this.arrayLength = Util.getArrayContentSize(array);
             this.arrayRef.set(array);
-            long index = unsignedAddExact(offset, size);
+            long index = Util.unsignedAddExact(offset, size);
             if (index < 0 || index > arrayLength)
                 throw new ArrayIndexOutOfBoundsException("Array index out of range: " + Long.toUnsignedString(index));
         }
         this.arrayOffset = offset;
         this.size = size;
-    }
-
-    private static long getArrayContentSize(Object array) {
-        if (array == null || !array.getClass().isArray() || !array.getClass().getComponentType().isPrimitive())
-            throw new IllegalArgumentException("not a primitive array");
-        else if (array.getClass().getComponentType() == boolean.class) throw new IllegalArgumentException("boolean array not supported");
-        else if (array instanceof byte[]) return ((byte[]) array).length;
-        else if (array instanceof char[]) return (long) ((char[]) array).length << 1;
-        else if (array instanceof short[]) return (long) ((short[]) array).length << 1;
-        else if (array instanceof int[]) return (long) ((int[]) array).length << 2;
-        else if (array instanceof long[]) return (long) ((long[]) array).length << 3;
-        else if (array instanceof float[]) return (long) ((float[]) array).length << 2;
-        else if (array instanceof double[]) return (long) ((double[]) array).length << 3;
-        else throw new IllegalStateException("Unexpected exception");
-    }
-
-    private static long unsignedAddExact(long x, long y) {
-        long sum = x + y;
-        if (Long.compareUnsigned(x, sum) > 0) throw new ArithmeticException("long overflow");
-        return sum;
     }
 
     @Override

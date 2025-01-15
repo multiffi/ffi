@@ -8,7 +8,7 @@ import java.util.Objects;
 
 public class JNRNativeLibraryLoader<T> extends jnr.ffi.LibraryLoader<T> {
 
-    private Class<T> interfaceClass;
+    private final Class<T> interfaceClass;
     public JNRNativeLibraryLoader(Class<T> interfaceClass) {
         super(interfaceClass);
         this.interfaceClass = Objects.requireNonNull(interfaceClass);

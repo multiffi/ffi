@@ -1,6 +1,7 @@
 package multiffi.ffi.spi;
 
 import multiffi.ffi.Foreign;
+import multiffi.ffi.MemoryHandle;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
@@ -84,6 +85,12 @@ public abstract class BufferProvider {
     public abstract ByteBuffer wrapBytes(long address, int capacity);
 
     public abstract ByteBuffer wrapBytes(long address);
+
+    public ByteBuffer wrapBytes(MemoryHandle memoryHandle) {
+        long size = memoryHandle.size();
+        if (memoryHandle.isDirect()) return wrapBytes(memoryHandle.address(), (size < 0 || size > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) size);
+        else return wrapBytes((byte[]) memoryHandle.array(), (int) memoryHandle.arrayOffset(), (int) size);
+    }
 
     public CharBuffer allocateChars(int capacity) {
         return CharBuffer.allocate(capacity);

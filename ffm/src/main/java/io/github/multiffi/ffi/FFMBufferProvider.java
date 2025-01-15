@@ -21,27 +21,21 @@ public class FFMBufferProvider extends BufferProvider {
         return MemorySegment.ofAddress(address).reinterpret(Integer.MAX_VALUE).asByteBuffer();
     }
 
-    private static final class BufferFieldMethodHolder {
-        private BufferFieldMethodHolder() {
-            throw new UnsupportedOperationException();
+    public static final Field addressField;
+    public static final Method baseMethod;
+    static {
+        try {
+            addressField = Buffer.class.getDeclaredField("address");
+            baseMethod = Buffer.class.getDeclaredMethod("base");
         }
-        public static final Field addressField;
-        public static final Method baseMethod;
-        static {
-            try {
-                addressField = Buffer.class.getDeclaredField("address");
-                baseMethod = Buffer.class.getDeclaredMethod("base");
-            }
-            catch (NoSuchFieldException | NoSuchMethodException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
+        catch (NoSuchFieldException | NoSuchMethodException e) {
+            throw new IllegalStateException("Unexpected exception", e);
         }
     }
 
     @Override
     public long address(Buffer buffer) {
-        if (buffer.isDirect()) return FFMUtil.UnsafeHolder.UNSAFE.getLong(buffer,
-                FFMUtil.UnsafeHolder.UNSAFE.objectFieldOffset(BufferFieldMethodHolder.addressField));
+        if (buffer.isDirect()) return FFMUtil.UNSAFE.getLong(buffer, FFMUtil.UNSAFE.objectFieldOffset(addressField));
         else return 0;
     }
 
@@ -55,10 +49,10 @@ public class FFMBufferProvider extends BufferProvider {
         if (buffer instanceof ByteBuffer) return (ByteBuffer) buffer;
         else if (buffer != null && buffer.getClass().getSimpleName().startsWith("ByteBufferAs")) {
             try {
-                return (ByteBuffer) FFMUtil.UnsafeHolder.UNSAFE.getObject(buffer,
-                        FFMUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
+                return (ByteBuffer) FFMUtil.UNSAFE.getObject(buffer,
+                        FFMUtil.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
             } catch (NoSuchFieldException | ClassCastException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             }
         }
         else return null;
@@ -67,7 +61,7 @@ public class FFMBufferProvider extends BufferProvider {
     @Override
     public void clean(Buffer buffer) {
         ByteBuffer byteBuffer = getByteBuffer(buffer);
-        if (byteBuffer != null) FFMUtil.UnsafeHolder.UNSAFE.invokeCleaner(byteBuffer);
+        if (byteBuffer != null) FFMUtil.UNSAFE.invokeCleaner(byteBuffer);
     }
 
     @SuppressWarnings("unchecked")
@@ -76,10 +70,10 @@ public class FFMBufferProvider extends BufferProvider {
         if (buffer == null || !buffer.isDirect()) return null;
         else {
             try {
-                return (T) FFMUtil.UnsafeHolder.IMPL_LOOKUP
+                return (T) FFMUtil.IMPL_LOOKUP
                         .unreflect(buffer.getClass().getMethod("attachment")).bindTo(buffer).invokeWithArguments();
             } catch (NoSuchMethodException | ClassCastException | IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             } catch (RuntimeException | Error e) {
                 throw e;
             } catch (Throwable e) {
@@ -111,9 +105,9 @@ public class FFMBufferProvider extends BufferProvider {
         if (buffer.isDirect()) return null;
         else if (buffer.isReadOnly()) {
             try {
-                return FFMUtil.UnsafeHolder.IMPL_LOOKUP.unreflect(BufferFieldMethodHolder.baseMethod).bindTo(buffer).invokeWithArguments();
+                return FFMUtil.IMPL_LOOKUP.unreflect(baseMethod).bindTo(buffer).invokeWithArguments();
             } catch (IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             } catch (RuntimeException | Error e) {
                 throw e;
             } catch (Throwable e) {
@@ -128,13 +122,13 @@ public class FFMBufferProvider extends BufferProvider {
         if (buffer.isDirect()) return 0;
         else if (buffer.isReadOnly()) {
             try {
-                return FFMUtil.UnsafeHolder.UNSAFE.getInt(buffer,
-                        FFMUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
+                return FFMUtil.UNSAFE.getInt(buffer,
+                        FFMUtil.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
             } catch (NoSuchFieldException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             }
         }
-        else return buffer.arrayOffset() * FFMUtil.UnsafeHolder.UNSAFE.arrayIndexScale(buffer.array().getClass());
+        else return buffer.arrayOffset() * FFMUtil.UNSAFE.arrayIndexScale(buffer.array().getClass());
     }
 
 }

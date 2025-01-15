@@ -1,5 +1,6 @@
 package multiffi.ffi;
 
+import java.util.Iterator;
 import java.util.List;
 
 public abstract class FunctionHandle {
@@ -29,54 +30,28 @@ public abstract class FunctionHandle {
     public abstract MemoryHandle invokeCompound(Object... args);
     public abstract Object invoke(Object... args);
 
-    private abstract static class InvokeAdapter64 {
+    @FunctionalInterface
+    private interface InvokeAdapter64 {
+        long invoke(FunctionHandle function, Object... args);
 
-        public abstract long invoke(FunctionHandle function, Object... args);
+        InvokeAdapter64 SIZE64 = FunctionHandle::invokeInt64;
+        InvokeAdapter64 SIZE32 = (function, args) -> function.invokeInt32(args) & 0xFFFFFFFFL;
+        InvokeAdapter64 SIZE16 = (function, args) -> function.invokeInt16(args) & 0xFFFFL;
 
-        public static final InvokeAdapter64 SIZE64 = new InvokeAdapter64() {
-            @Override
-            public long invoke(FunctionHandle function, Object... args) {
-                return function.invokeInt64(args);
-            }
-        };
-        public static final InvokeAdapter64 SIZE32 = new InvokeAdapter64() {
-            @Override
-            public long invoke(FunctionHandle function, Object... args) {
-                return function.invokeInt32(args) & 0xFFFFFFFFL;
-            }
-        };
-        public static final InvokeAdapter64 SIZE16 = new InvokeAdapter64() {
-            @Override
-            public long invoke(FunctionHandle function, Object... args) {
-                return function.invokeInt16(args) & 0xFFFFL;
-            }
-        };
-
-        public static final InvokeAdapter64 SHORT = Foreign.shortSize() == 8L ? SIZE64 : SIZE16;
-        public static final InvokeAdapter64 INT = Foreign.intSize() == 8L ? SIZE64 : SIZE32;
-        public static final InvokeAdapter64 LONG = Foreign.longSize() == 8L ? SIZE64 : SIZE32;
-        public static final InvokeAdapter64 SIZE = Foreign.addressSize() == 8L ? SIZE64 : SIZE32;
-
+        InvokeAdapter64 SHORT = Foreign.shortSize() == 8L ? SIZE64 : SIZE16;
+        InvokeAdapter64 INT = Foreign.intSize() == 8L ? SIZE64 : SIZE32;
+        InvokeAdapter64 LONG = Foreign.longSize() == 8L ? SIZE64 : SIZE32;
+        InvokeAdapter64 SIZE = Foreign.addressSize() == 8L ? SIZE64 : SIZE32;
     }
-    public abstract static class InvokeAdapter32 {
 
-        public abstract int invoke(FunctionHandle function, Object... args);
+    @FunctionalInterface
+    private interface InvokeAdapter32 {
+        int invoke(FunctionHandle function, Object... args);
 
-        public static final InvokeAdapter32 SIZE32 = new InvokeAdapter32() {
-            @Override
-            public int invoke(FunctionHandle function, Object... args) {
-                return function.invokeInt32(args);
-            }
-        };
-        public static final InvokeAdapter32 SIZE16 = new InvokeAdapter32() {
-            @Override
-            public int invoke(FunctionHandle function, Object... args) {
-                return function.invokeInt16(args) & 0xFFFF;
-            }
-        };
+        InvokeAdapter32 SIZE32 = FunctionHandle::invokeInt32;
+        InvokeAdapter32 SIZE16 = (function, args) -> function.invokeInt16(args) & 0xFFFF;
 
-        public static final InvokeAdapter32 WCHAR = Foreign.wcharSize() == 4L ? SIZE32 : SIZE16;
-
+        InvokeAdapter32 WCHAR = Foreign.wcharSize() == 4L ? SIZE32 : SIZE16;
     }
 
     public byte invokeChar(Object... args) {
@@ -96,6 +71,52 @@ public abstract class FunctionHandle {
     }
     public long invokeSize(Object... args) {
         return InvokeAdapter64.SIZE.invoke(this, args);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        if (isStdCall()) {
+            builder.append("stdcall");
+            builder.append(' ');
+        }
+        else {
+            builder.append("cdecl");
+            builder.append(' ');
+        }
+        if (isCritical()) {
+            builder.append("critical");
+            builder.append(' ');
+        }
+        else if (isTrivial()) {
+            builder.append("trivial");
+            builder.append(' ');
+        }
+        else if (isSaveErrno()) {
+            builder.append("capture");
+            builder.append(' ');
+        }
+        ForeignType returnType = getReturnType();
+        builder.append(returnType == null ? "void" : returnType);
+        builder.append(' ');
+        builder.append(String.format("0x%08X", address()));
+        builder.append('(');
+        Iterator<ForeignType> iterator = getParameterTypes().iterator();
+        if (iterator.hasNext()) {
+            while (iterator.hasNext()) {
+                builder.append(iterator.next());
+                if (iterator.hasNext()) builder.append(',').append(' ');
+                else {
+                    if (isDynCall()) builder.append(',').append(' ').append("...");
+                    builder.append(')');
+                }
+            }
+        }
+        else {
+            if (isDynCall()) builder.append("...");
+            builder.append(')');
+        }
+        return builder.toString();
     }
 
 }

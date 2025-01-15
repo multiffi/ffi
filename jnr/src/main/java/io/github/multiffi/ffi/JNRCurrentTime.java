@@ -1,12 +1,35 @@
 package io.github.multiffi.ffi;
 
+import jnr.ffi.LibraryLoader;
 import jnr.ffi.Platform;
+import jnr.ffi.Runtime;
+import jnr.ffi.Struct;
+import jnr.ffi.annotations.IgnoreError;
+import jnr.ffi.annotations.Out;
 import jnr.ffi.byref.LongLongByReference;
 
 public final class JNRCurrentTime {
 
     private JNRCurrentTime() {
-        throw new AssertionError("No io.github.multiffi.ffi.JNACurrentTime instances for you!");
+        throw new AssertionError("No io.github.multiffi.ffi.JNRCurrentTime instances for you!");
+    }
+
+    public interface Kernel32 {
+        Kernel32 INSTANCE = JNRUtil.PLATFORM.getOS() != Platform.OS.WINDOWS ? null :
+                LibraryLoader.create(Kernel32.class).load(JNRUtil.PLATFORM.getName().startsWith("Windows CE") ? "coredll" : "kernel32");
+        @IgnoreError
+        int QueryPerformanceFrequency(@Out LongLongByReference lpFrequency);
+        @IgnoreError
+        int QueryPerformanceCounter(@Out LongLongByReference lpPerformanceCount);
+        @IgnoreError
+        void GetSystemTimeAsFileTime(@Out FILETIME lpSystemTimeAsFileTime);
+    }
+
+    public interface CLibrary {
+        CLibrary INSTANCE = JNRUtil.PLATFORM.getOS() == Platform.OS.WINDOWS ? null :
+                LibraryLoader.create(CLibrary.class).load(JNRUtil.PLATFORM.getStandardCLibraryName());
+        @IgnoreError
+        int clock_gettime(int id, @Out timespec timespec);
     }
 
     private static final class Windows {
@@ -16,27 +39,27 @@ public final class JNRCurrentTime {
         private static final long exp7 = 10000000L;
         private static final long exp9 = 1000000000L;
         private static final long w2ux = 116444736000000000L;
-        private static final JNRMappedTypes.timespec startspec = new JNRMappedTypes.timespec();
+        private static final timespec startspec = new timespec();
         private static double ticks2nano;
         private static long startticks, tps = 0;
-        public static void clock_gettime(JNRMappedTypes.timespec timespec) {
+        public static void clock_gettime(timespec timespec) {
             LongLongByReference lptmp = new LongLongByReference();
             long curticks;
-            JNRLibraries.Kernel32.INSTANCE.QueryPerformanceFrequency(lptmp);
+            Kernel32.INSTANCE.QueryPerformanceFrequency(lptmp);
             long tmp = lptmp.getValue();
             if (tps != tmp) {
                 tps = tmp;
-                JNRLibraries.Kernel32.INSTANCE.QueryPerformanceCounter(lptmp);
+                Kernel32.INSTANCE.QueryPerformanceCounter(lptmp);
                 startticks = lptmp.getValue();
-                JNRMappedTypes.FILETIME lpFileTime = new JNRMappedTypes.FILETIME();
-                JNRLibraries.Kernel32.INSTANCE.GetSystemTimeAsFileTime(lpFileTime);
+                FILETIME lpFileTime = new FILETIME();
+                Kernel32.INSTANCE.GetSystemTimeAsFileTime(lpFileTime);
                 long wintime = lpFileTime.dwLowDateTime.longValue() | (lpFileTime.dwHighDateTime.longValue() << 32);
                 wintime -= w2ux;
                 startspec.tv_sec.set(wintime / exp7);
                 startspec.tv_nsec.set(wintime % exp7 * 100L);
                 ticks2nano = (double) exp9 / tps;
             }
-            JNRLibraries.Kernel32.INSTANCE.QueryPerformanceCounter(lptmp);
+            Kernel32.INSTANCE.QueryPerformanceCounter(lptmp);
             curticks = lptmp.getValue();
             curticks -= startticks;
             timespec.tv_sec.set(startspec.tv_sec.longValue() + (curticks / tps));
@@ -49,17 +72,51 @@ public final class JNRCurrentTime {
     }
 
     public static long seconds() {
-        JNRMappedTypes.timespec timespec = new JNRMappedTypes.timespec();
+        timespec timespec = new timespec();
         if (JNRUtil.PLATFORM.getOS() == Platform.OS.WINDOWS) Windows.clock_gettime(timespec);
-        else JNRLibraries.CLibrary.INSTANCE.clock_gettime(0, timespec);
+        else CLibrary.INSTANCE.clock_gettime(0, timespec);
         return timespec.tv_sec.longValue();
     }
 
     public static int nanos() {
-        JNRMappedTypes.timespec timespec = new JNRMappedTypes.timespec();
+        timespec timespec = new timespec();
         if (JNRUtil.PLATFORM.getOS() == Platform.OS.WINDOWS) Windows.clock_gettime(timespec);
-        else JNRLibraries.CLibrary.INSTANCE.clock_gettime(0, timespec);
+        else CLibrary.INSTANCE.clock_gettime(0, timespec);
         return timespec.tv_nsec.intValue();
+    }
+
+    public static class FILETIME extends Struct {
+        public final DWORD dwLowDateTime = new DWORD();
+        public final DWORD dwHighDateTime = new DWORD();
+        public FILETIME() {
+            super(JNRUtil.RUNTIME);
+        }
+        public FILETIME(jnr.ffi.Runtime runtime) {
+            super(runtime);
+        }
+        public FILETIME(jnr.ffi.Runtime runtime, Alignment alignment) {
+            super(runtime, alignment);
+        }
+        public FILETIME(Runtime runtime, Struct enclosing) {
+            super(runtime, enclosing);
+        }
+    }
+
+    public static class timespec extends Struct {
+        public final time_t tv_sec = new time_t();
+        public final SignedLong tv_nsec = new SignedLong();
+        public timespec() {
+            super(JNRUtil.RUNTIME);
+        }
+        public timespec(Runtime runtime) {
+            super(runtime);
+        }
+        public timespec(Runtime runtime, Alignment alignment) {
+            super(runtime, alignment);
+        }
+        public timespec(Runtime runtime, Struct enclosing) {
+            super(runtime, enclosing);
+        }
     }
 
 }

@@ -2,7 +2,7 @@ package io.github.multiffi.ffi;
 
 import jnr.ffi.provider.jffi.JNRNativeLibraryLoader;
 import multiffi.ffi.CallOption;
-import multiffi.ffi.CallOptionVisitor;
+import multiffi.ffi.FunctionOptionVisitor;
 import multiffi.ffi.Foreign;
 import multiffi.ffi.ForeignType;
 import multiffi.ffi.MemoryHandle;
@@ -17,7 +17,6 @@ import org.objectweb.asm.Type;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,44 +33,41 @@ public final class JNRASMRuntime {
         return new JNRNativeLibraryLoader<>(clazz).loadLibrary(functionMap, Collections.emptyMap(), false);
     }
 
-    private static final class ClassCheckerMethodHolder {
-        private ClassCheckerMethodHolder() {
-            throw new UnsupportedOperationException();
+    private static final Method isHiddenMethod;
+    private static final Method isSealedMethod;
+    static {
+        Method method;
+        try {
+            method = Class.class.getDeclaredMethod("isHidden");
+        } catch (NoSuchMethodException e) {
+            method = null;
         }
-        private static final Method isHiddenMethod;
-        private static final Method isSealedMethod;
-        static {
-            Method method;
-            try {
-                method = Class.class.getDeclaredMethod("isHidden");
-            } catch (NoSuchMethodException e) {
-                method = null;
-            }
-            isHiddenMethod = method;
-            try {
-                method = Class.class.getDeclaredMethod("isSealed");
-            } catch (NoSuchMethodException e) {
-                method = null;
-            }
-            isSealedMethod = method;
+        isHiddenMethod = method;
+        try {
+            method = Class.class.getDeclaredMethod("isSealed");
+        } catch (NoSuchMethodException e) {
+            method = null;
         }
+        isSealedMethod = method;
     }
+    
     private static boolean isHidden(Class<?> clazz) {
-        if (ClassCheckerMethodHolder.isHiddenMethod == null) return false;
+        if (isHiddenMethod == null) return false;
         else {
             try {
-                return (boolean) JNRUtil.invoke(clazz, ClassCheckerMethodHolder.isHiddenMethod);
+                return (boolean) JNRUtil.invoke(clazz, isHiddenMethod);
             }
             catch (Throwable e) {
                 return false;
             }
         }
     }
+    
     private static boolean isSealed(Class<?> clazz) {
-        if (ClassCheckerMethodHolder.isSealedMethod == null) return false;
+        if (isSealedMethod == null) return false;
         else {
             try {
-                return (boolean) JNRUtil.invoke(clazz, ClassCheckerMethodHolder.isSealedMethod);
+                return (boolean) JNRUtil.invoke(clazz, isSealedMethod);
             }
             catch (Throwable e) {
                 return false;
@@ -102,6 +98,7 @@ public final class JNRASMRuntime {
             }
         }
     }
+
     private static void checkVisible(ClassLoader classLoader, Class<?> clazz) {
         Class<?> type = null;
         try {
@@ -113,40 +110,11 @@ public final class JNRASMRuntime {
                 " referenced from a method is not visible from class loader: " + classLoader);
     }
 
-    private static final class DefineClassHolder {
-        private DefineClassHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final Method defineClassMethod;
-        static {
-            try {
-                defineClassMethod = ClassLoader.class.getDeclaredMethod("defineClass", String.class, byte[].class, int.class, int.class, ProtectionDomain.class);
-            } catch (NoSuchMethodException e) {
-                throw new IllegalStateException("Unexpected exception");
-            }
-        }
-    }
-
-    public static Class<?> defineClass(ClassLoader classLoader, String name, byte[] bytecode, int offset, int length, ProtectionDomain protectionDomain) {
-        try {
-            return (Class<?>) JNRUtil.invoke(classLoader, DefineClassHolder.defineClassMethod, name, bytecode, offset, length, protectionDomain);
-        } catch (RuntimeException | Error e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static Class<?> defineClass(ClassLoader classLoader, String name, byte[] bytecode) {
-        return defineClass(classLoader, name, bytecode, 0, bytecode.length, null);
-    }
-
     private static final AtomicLong nextSerialNumber = new AtomicLong();
-    public static Object generateProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-        if (classes.length == 0) return null;
+    public static Object generateProxy(ClassLoader classLoader, Class<?>[] classes, FunctionOptionVisitor functionOptionVisitor) {
+        if (classes == null || classes.length == 0) return null;
         else if (classes.length > 65535) throw new IllegalArgumentException("interface limit exceeded: " + classes.length);
         checkProxyClasses(classLoader, classes);
-        if (!JNRUtil.ASM_AVAILABLE) return null;
         String proxyName = "multiffi.ffi.jnr.Proxy$" + nextSerialNumber.getAndIncrement();
         String proxyInternalName = proxyName.replace('.', '/');
         String[] classInternalNames = new String[classes.length];
@@ -178,30 +146,35 @@ public final class JNRASMRuntime {
                 if (method.isDefault() || method.getDeclaringClass() == Object.class || Modifier.isStatic(method.getModifiers())) continue;
                 String methodName = method.getName();
                 String methodFieldName = "function" + Integer.toHexString(method.hashCode());
-                CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
+                CallOption[] options = functionOptionVisitor.visitCallOptions(method);
                 boolean dyncall = false;
                 boolean stdcall = false;
                 boolean saveErrno = false;
-                for (CallOption option : callOptions) {
-                    if (option.equals(StandardCallOption.DYNCALL)) dyncall = true;
-                    else if (option.equals(StandardCallOption.SAVE_ERRNO)) saveErrno = true;
-                    else if (option.equals(StandardCallOption.STDCALL)) stdcall = true;
-                    else if (!option.equals(StandardCallOption.TRIVIAL) && !option.equals(StandardCallOption.CRITICAL))
-                        throw new IllegalArgumentException(option + " not supported");
+                if (options != null) {
+                    for (CallOption option : options) {
+                        if (option.equals(StandardCallOption.DYNCALL)) dyncall = true;
+                        else if (option.equals(StandardCallOption.SAVE_ERRNO)) saveErrno = true;
+                        else if (option.equals(StandardCallOption.STDCALL)) stdcall = true;
+                        else if (!option.equals(StandardCallOption.TRIVIAL) && !option.equals(StandardCallOption.CRITICAL))
+                            throw new IllegalArgumentException(option + " not supported");
+                    }
+                    if (!JNRUtil.STDCALL_SUPPORTED) stdcall = false;
                 }
-                if (!JNRUtil.STDCALL_AVAILABLE) stdcall = false;
 
-                int firstVarArgIndex = callOptionVisitor.visitFirstVarArgIndex(method);
+                int firstVarArgIndex = functionOptionVisitor.visitFirstVarArgIndex(method);
 
-                ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
+                ForeignType[] parameterForeignTypes = functionOptionVisitor.visitParameterTypes(method);
+                if (parameterForeignTypes == null || parameterForeignTypes.length == 1 && parameterForeignTypes[0] == null)
+                    parameterForeignTypes = Util.EMPTY_FOREIGN_TYPE_ARRAY;
+                else parameterForeignTypes = parameterForeignTypes.clone();
                 firstVarArgIndex = firstVarArgIndex >= 0 ? firstVarArgIndex : (dyncall ? parameterForeignTypes.length : -1);
 
-                ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
+                ForeignType returnForeignType = functionOptionVisitor.visitReturnType(method);
                 boolean addReturnMemoryParameter = returnForeignType != null && returnForeignType.isCompound();
                 Class<?>[] parameterTypes = method.getParameterTypes();
                 Class<?> returnType = method.getReturnType();
                 if (parameterForeignTypes.length + (addReturnMemoryParameter ? 1 : 0) + (dyncall ? 1 : 0) != parameterTypes.length)
-                    throw new IllegalArgumentException("Array length mismatch");
+                    throw new ArrayIndexOutOfBoundsException("length mismatch");
                 if (addReturnMemoryParameter && parameterTypes[0] != MemoryHandle.class)
                     throw new IllegalArgumentException("Illegal mapping type; expected class MemoryHandle");
                 if (dyncall && !parameterTypes[parameterTypes.length - 1].isArray())
@@ -209,7 +182,7 @@ public final class JNRASMRuntime {
 
                 boolean hasCompound = addReturnMemoryParameter;
                 for (int i = 0; i < parameterForeignTypes.length; i ++) {
-                    JNRUtil.checkType(Objects.requireNonNull(parameterForeignTypes[i]), parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
+                    Util.checkType(Objects.requireNonNull(parameterForeignTypes[i]), parameterTypes[i + (addReturnMemoryParameter ? 1 : 0)]);
                     if (!hasCompound && parameterForeignTypes[i].isCompound()) hasCompound = true;
                 }
 
@@ -275,7 +248,7 @@ public final class JNRASMRuntime {
 
                     classInit.visitTypeInsn(Opcodes.NEW, "io/github/multiffi/ffi/JNRFunctionHandle");
                     classInit.visitInsn(Opcodes.DUP);
-                    visitLdcInsn(classInit, callOptionVisitor.visitAddress(method));
+                    visitLdcInsn(classInit, functionOptionVisitor.visitAddress(method));
                     visitLdcInsn(classInit, firstVarArgIndex);
 
                     if (returnForeignType != null && returnForeignType.isCompound()) classInit.visitVarInsn(Opcodes.ALOAD, 3);
@@ -408,7 +381,7 @@ public final class JNRASMRuntime {
                     }
 
                     String methodDescriptor = Type.getMethodDescriptor(method);
-                    directMethodMap.put(methodFieldName, callOptionVisitor.visitAddress(method));
+                    directMethodMap.put(methodFieldName, functionOptionVisitor.visitAddress(method));
 
                     MethodVisitor methodVisitor = libraryClassWriter.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT,
                             methodFieldName, methodDescriptor, null, null);
@@ -510,7 +483,7 @@ public final class JNRASMRuntime {
 
             libraryClassWriter.visitEnd();
 
-            defineClass(classLoader, proxyName + "$ffi", libraryClassWriter.toByteArray());
+            JNRUtil.defineClass(classLoader, proxyName + "$ffi", libraryClassWriter.toByteArray());
         }
 
         classInit.visitInsn(Opcodes.RETURN);
@@ -519,7 +492,7 @@ public final class JNRASMRuntime {
 
         classWriter.visitEnd();
         try {
-            return JNRUtil.newInstance(defineClass(classLoader, proxyName, classWriter.toByteArray()).getConstructor());
+            return JNRUtil.newInstance(JNRUtil.defineClass(classLoader, proxyName, classWriter.toByteArray()).getConstructor());
         } catch (RuntimeException | Error e) {
             throw e;
         } catch (Throwable e) {

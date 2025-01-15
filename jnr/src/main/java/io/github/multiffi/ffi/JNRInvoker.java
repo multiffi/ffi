@@ -65,7 +65,7 @@ public abstract class JNRInvoker {
             }
         };
         
-        private static final boolean ENABLED = JNRUtil.getBooleanProperty("jnr.ffi.fast-int.enabled", true);
+        private static final boolean ENABLED = Util.getBooleanProperty("jnr.ffi.fast-int.enabled", true);
         private final int parameters;
         private FastInt(int parameters) {
             this.parameters = parameters;
@@ -89,7 +89,7 @@ public abstract class JNRInvoker {
             if (number instanceof Integer) return (Integer) number;
             else if (number instanceof Byte) return number.byteValue() & 0xFF;
             else if (number instanceof Short) return number.shortValue() & 0xFFFF;
-            else throw new IllegalStateException("Unexpected exception");
+            else throw new IllegalArgumentException("Unsupported type");
         }
         
     }
@@ -142,7 +142,7 @@ public abstract class JNRInvoker {
             }
         };
 
-        private static final boolean ENABLED = JNRUtil.getBooleanProperty("jnr.ffi.fast-long.enabled", true);
+        private static final boolean ENABLED = Util.getBooleanProperty("jnr.ffi.fast-long.enabled", true);
         private final int parameters;
         private FastLong(int parameters) {
             this.parameters = parameters;
@@ -168,7 +168,7 @@ public abstract class JNRInvoker {
             else if (number instanceof Integer) return number.intValue() & 0xFFFFFFFFL;
             else if (number instanceof Byte) return number.byteValue() & 0xFFL;
             else if (number instanceof Short) return number.shortValue() & 0xFFFFL;
-            else throw new IllegalStateException("Unexpected exception");
+            else throw new IllegalArgumentException("Unsupported type");
         }
 
     }
@@ -221,7 +221,7 @@ public abstract class JNRInvoker {
             }
         };
 
-        private static final boolean ENABLED = JNRUtil.getBooleanProperty("jnr.ffi.fast-numeric.enabled", true);
+        private static final boolean ENABLED = Util.getBooleanProperty("jnr.ffi.fast-numeric.enabled", true);
         private final int parameters;
         private FastNumeric(int parameters) {
             this.parameters = parameters;
@@ -249,7 +249,7 @@ public abstract class JNRInvoker {
             else if (number instanceof Integer) return number.intValue() & 0xFFFFFFFFL;
             else if (number instanceof Byte) return number.byteValue() & 0xFFL;
             else if (number instanceof Short) return number.shortValue() & 0xFFFFL;
-            else throw new IllegalStateException("Unexpected exception");
+            else throw new IllegalArgumentException("Unsupported type");
         }
         private static Object objectValue(ForeignType returnType, long value) {
             if (returnType == null) return null;
@@ -323,7 +323,7 @@ public abstract class JNRInvoker {
                 return INVOKER.invokeAddress(context, function, heapInvocationBuffer);
             }
         };
-        public static final JNRInvoker NATIVE_LONG = JNRUtil.UnsafeHolder.RUNTIME.longSize() == 8 ? LONG : new Buffer() {
+        public static final JNRInvoker NATIVE_LONG = JNRUtil.LONG_SIZE == 8 ? LONG : new Buffer() {
             @Override
             protected Object invoke(CallContext context, long function, HeapInvocationBuffer heapInvocationBuffer) {
                 return INVOKER.invokeInt(context, function, heapInvocationBuffer) & 0xFFFFFFFFL;

@@ -2,7 +2,7 @@ package multiffi.ffi;
 
 import java.lang.reflect.Method;
 
-public interface CallOptionVisitor {
+public interface FunctionOptionVisitor {
 
     long visitAddress(Method method);
     int visitFirstVarArgIndex(Method method);

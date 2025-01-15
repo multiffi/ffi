@@ -1,5 +1,6 @@
 package multiffi.ffi.spi;
 
+import io.github.multiffi.ffi.StackAllocator;
 import multiffi.ffi.Foreign;
 import multiffi.ffi.Limits;
 
@@ -7,21 +8,21 @@ import java.nio.charset.Charset;
 import java.util.Objects;
 import java.util.ServiceLoader;
 
-public abstract class AllocatorProvider {
+public abstract class MemoryProvider {
 
-    private static volatile AllocatorProvider IMPLEMENTATION;
+    private static volatile MemoryProvider IMPLEMENTATION;
     private static final Object IMPLEMENTATION_LOCK = new Object();
-    public static AllocatorProvider getImplementation() {
+    public static MemoryProvider getImplementation() {
         if (IMPLEMENTATION == null) synchronized (IMPLEMENTATION_LOCK) {
             if (IMPLEMENTATION == null) {
                 try {
-                    IMPLEMENTATION = (AllocatorProvider) Class
+                    IMPLEMENTATION = (MemoryProvider) Class
                             .forName(Objects.requireNonNull(System.getProperty("multiffi.allocator.provider")))
                             .getConstructor()
                             .newInstance();
                 } catch (Throwable e) {
                     try {
-                        for (AllocatorProvider provider : ServiceLoader.load(AllocatorProvider.class)) {
+                        for (MemoryProvider provider : ServiceLoader.load(MemoryProvider.class)) {
                             if (provider != null) {
                                 IMPLEMENTATION = provider;
                                 break;
@@ -32,16 +33,40 @@ public abstract class AllocatorProvider {
                         IMPLEMENTATION = null;
                     }
                 }
-                if (IMPLEMENTATION == null) throw new IllegalStateException("Failed to get any installed multiffi.ffi.spi.AllocatorProvider instance");
+                if (IMPLEMENTATION == null) throw new IllegalStateException("Failed to get any installed multiffi.ffi.spi.MemoryProvider instance");
             }
         }
         return IMPLEMENTATION;
+    }
+
+    public void pushStack() {
+        StackAllocator.push();
+    }
+    public void popStack() {
+        StackAllocator.pop();
+    }
+
+    public long allocateOnStack(long size) {
+        return StackAllocator.allocate(size);
+    }
+    public long allocateInitializedOnStack(long count, long size) {
+        return StackAllocator.allocateInitialized(count, size);
+    }
+    public long allocateAlignedOnStack(long size, long alignment) {
+        return StackAllocator.allocateAligned(size, alignment);
+    }
+    public long allocateInitializedAlignedOnStack(long count, long size, long alignment) {
+        return StackAllocator.allocateInitializedAligned(count, size, alignment);
     }
 
     public abstract long allocate(long size);
     public abstract long allocateInitialized(long count, long size);
     public abstract long reallocate(long address, long size);
     public abstract void free(long address);
+    public abstract long allocateAligned(long size, long alignment);
+    public abstract long allocateInitializedAligned(long count, long size, long alignment);
+    public abstract long reallocateAligned(long address, long size, long alignment);
+    public abstract void freeAligned(long address);
 
     public abstract long search(long address, byte value, long maxLength);
     public long search(long address, byte value) {
@@ -1202,129 +1227,129 @@ public abstract class AllocatorProvider {
         setUTF16(memoryArray, memoryArrayOffset + (long) length << 1, '\0');
     }
 
-    private abstract static class Int64Adapter {
+    private interface Int64Adapter {
         
-        public abstract long get(AllocatorProvider provider, Object array, long offset);
-        public abstract void set(AllocatorProvider provider, Object array, long offset, long value);
-        public abstract long get(AllocatorProvider provider, long address);
-        public abstract void set(AllocatorProvider provider, long address, long value);
+        long get(MemoryProvider provider, Object array, long offset);
+        void set(MemoryProvider provider, Object array, long offset, long value);
+        long get(MemoryProvider provider, long address);
+        void set(MemoryProvider provider, long address, long value);
 
-        public static final Int64Adapter SIZE64 = new Int64Adapter() {
+        Int64Adapter SIZE64 = new Int64Adapter() {
             @Override
-            public long get(AllocatorProvider provider, Object array, long offset) {
+            public long get(MemoryProvider provider, Object array, long offset) {
                 return provider.getInt64(array, offset);
             }
             @Override
-            public void set(AllocatorProvider provider, Object array, long offset, long value) {
+            public void set(MemoryProvider provider, Object array, long offset, long value) {
                 provider.setInt64(array, offset, value);
             }
             @Override
-            public long get(AllocatorProvider provider, long address) {
+            public long get(MemoryProvider provider, long address) {
                 return provider.getInt64(address);
             }
             @Override
-            public void set(AllocatorProvider provider, long address, long value) {
+            public void set(MemoryProvider provider, long address, long value) {
                 provider.setInt64(address, value);
             }
         };
 
-        public static final Int64Adapter SIZE32 = new Int64Adapter() {
+        Int64Adapter SIZE32 = new Int64Adapter() {
             @Override
-            public long get(AllocatorProvider provider, Object array, long offset) {
+            public long get(MemoryProvider provider, Object array, long offset) {
                 return (long) provider.getInt32(array, offset) & 0xFFFFFFFFL;
             }
             @Override
-            public void set(AllocatorProvider provider, Object array, long offset, long value) {
+            public void set(MemoryProvider provider, Object array, long offset, long value) {
                 if ((((value >> 32) + 1) & ~1) != 0) throw new ArithmeticException("integer overflow");
                 provider.setInt32(array, offset, (int) value);
             }
             @Override
-            public long get(AllocatorProvider provider, long address) {
+            public long get(MemoryProvider provider, long address) {
                 return (long) provider.getInt32(address) & 0xFFFFFFFFL;
             }
             @Override
-            public void set(AllocatorProvider provider, long address, long value) {
+            public void set(MemoryProvider provider, long address, long value) {
                 if ((((value >> 32) + 1) & ~1) != 0) throw new ArithmeticException("integer overflow");
                 provider.setInt32(address, (int) value);
             }
         };
 
-        public static final Int64Adapter SIZE16 = new Int64Adapter() {
+        Int64Adapter SIZE16 = new Int64Adapter() {
             @Override
-            public long get(AllocatorProvider provider, Object array, long offset) {
+            public long get(MemoryProvider provider, Object array, long offset) {
                 return (long) provider.getInt16(array, offset) & 0xFFFFL;
             }
             @Override
-            public void set(AllocatorProvider provider, Object array, long offset, long value) {
+            public void set(MemoryProvider provider, Object array, long offset, long value) {
                 if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 provider.setInt16(array, offset, (short) value);
             }
             @Override
-            public long get(AllocatorProvider provider, long address) {
+            public long get(MemoryProvider provider, long address) {
                 return (long) provider.getInt16(address) & 0xFFFFL;
             }
             @Override
-            public void set(AllocatorProvider provider, long address, long value) {
+            public void set(MemoryProvider provider, long address, long value) {
                 if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 provider.setInt16(address, (short) value);
             }
         };
 
-        public static final Int64Adapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
-        public static final Int64Adapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
-        public static final Int64Adapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
-        public static final Int64Adapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
+        Int64Adapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
 
     }
 
-    private abstract static class Int32Adapter {
+    private interface Int32Adapter {
 
-        public abstract int get(AllocatorProvider provider, Object array, long offset);
-        public abstract void set(AllocatorProvider provider, Object array, long offset, int value);
-        public abstract int get(AllocatorProvider provider, long address);
-        public abstract void set(AllocatorProvider provider, long address, int value);
+        int get(MemoryProvider provider, Object array, long offset);
+        void set(MemoryProvider provider, Object array, long offset, int value);
+        int get(MemoryProvider provider, long address);
+        void set(MemoryProvider provider, long address, int value);
 
-        public static final Int32Adapter SIZE32 = new Int32Adapter() {
+        Int32Adapter SIZE32 = new Int32Adapter() {
             @Override
-            public int get(AllocatorProvider provider, Object array, long offset) {
+            public int get(MemoryProvider provider, Object array, long offset) {
                 return provider.getInt32(array, offset);
             }
             @Override
-            public void set(AllocatorProvider provider, Object array, long offset, int value) {
+            public void set(MemoryProvider provider, Object array, long offset, int value) {
                 provider.setInt32(array, offset, value);
             }
             @Override
-            public int get(AllocatorProvider provider, long address) {
+            public int get(MemoryProvider provider, long address) {
                 return provider.getInt32(address);
             }
             @Override
-            public void set(AllocatorProvider provider, long address, int value) {
+            public void set(MemoryProvider provider, long address, int value) {
                 provider.setInt32(address, value);
             }
         };
 
-        public static final Int32Adapter SIZE16 = new Int32Adapter() {
+        Int32Adapter SIZE16 = new Int32Adapter() {
             @Override
-            public int get(AllocatorProvider provider, Object array, long offset) {
+            public int get(MemoryProvider provider, Object array, long offset) {
                 return (int) provider.getInt16(array, offset) & 0xFFFF;
             }
             @Override
-            public void set(AllocatorProvider provider, Object array, long offset, int value) {
+            public void set(MemoryProvider provider, Object array, long offset, int value) {
                 if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 provider.setInt16(array, offset, (short) value);
             }
             @Override
-            public int get(AllocatorProvider provider, long address) {
+            public int get(MemoryProvider provider, long address) {
                 return (int) provider.getInt16(address) & 0xFFFF;
             }
             @Override
-            public void set(AllocatorProvider provider, long address, int value) {
+            public void set(MemoryProvider provider, long address, int value) {
                 if (value > 65535 || value < 0) throw new ArithmeticException("integer overflow");
                 provider.setInt16(address, (short) value);
             }
         };
 
-        public static final Int32Adapter WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
+        Int32Adapter WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
 
     }
 

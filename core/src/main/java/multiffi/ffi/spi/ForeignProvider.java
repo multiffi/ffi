@@ -1,12 +1,14 @@
 package multiffi.ffi.spi;
 
-import multiffi.ffi.CallOptionVisitor;
+import multiffi.ffi.MemoryHandle;
+import multiffi.ffi.FunctionOptionVisitor;
 import multiffi.ffi.CallOption;
 import multiffi.ffi.ForeignType;
 import multiffi.ffi.FunctionHandle;
 
 import java.io.File;
-import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
@@ -52,6 +54,7 @@ public abstract class ForeignProvider {
     public abstract long longSize();
     public abstract long wcharSize();
     public abstract long pageSize();
+    public abstract long alignmentSize();
 
     public abstract Charset ansiCharset();
     public abstract Charset wideCharset();
@@ -71,16 +74,21 @@ public abstract class ForeignProvider {
     public abstract Map<String, String> environ();
     public abstract String getEnviron(String key);
     public abstract String getEnviron(String key, String defaultValue);
-    public abstract String getStackTraceString(Throwable throwable);
+    public String getStackTraceString(Throwable throwable) {
+        if (throwable == null) return null;
+        StringWriter writer = new StringWriter();
+        throwable.printStackTrace(new PrintWriter(writer));
+        return writer.toString();
+    }
 
     public abstract boolean isBigEndian();
     public abstract boolean isLittleEndian();
     public abstract ByteOrder endianness();
 
-    public abstract void loadLibrary(String libraryName) throws IOException;
-    public abstract void loadLibrary(File libraryFile) throws IOException;
+    public abstract void loadLibrary(String libraryName) throws UnsatisfiedLinkError;
+    public abstract void loadLibrary(File libraryFile) throws UnsatisfiedLinkError;
 
-    public abstract long getSymbolAddress(String symbolName);
+    public abstract long getSymbolAddress(String symbolName) throws UnsatisfiedLinkError;
     public abstract String mapLibraryName(String libraryName);
     public abstract int getLastErrno();
     public abstract void setLastErrno(int errno);
@@ -89,10 +97,9 @@ public abstract class ForeignProvider {
         return getErrorString(getLastErrno());
     }
 
-    private static final CallOption[] EMPTY_CALL_OPTION_ARRAY = new CallOption[0];
-    public abstract FunctionHandle downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
-    public FunctionHandle downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallHandle(address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public abstract FunctionHandle downcallHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
+    public FunctionHandle downcallHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallHandle(address, firstVarArgIndex, returnType, parameterTypes, (CallOption[]) null);
     }
     public FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return downcallHandle(address, -1, returnType, parameterTypes, options);
@@ -101,7 +108,7 @@ public abstract class ForeignProvider {
         return downcallHandle(address, -1, returnType, parameterTypes);
     }
     public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
-                               long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+                               long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         Objects.requireNonNull(clazz);
         boolean hasMethod = false;
         for (Method method : clazz.getMethods()) {
@@ -110,14 +117,14 @@ public abstract class ForeignProvider {
                 else hasMethod = true;
             }
         }
-        return downcallProxy(classLoader, clazz, new CallOptionVisitor() {
+        return downcallProxy(classLoader, clazz, new FunctionOptionVisitor() {
             @Override
             public long visitAddress(Method method) {
                 return address;
             }
             @Override
             public int visitFirstVarArgIndex(Method method) {
-                return firstVararg;
+                return firstVarArgIndex;
             }
             @Override
             public ForeignType visitReturnType(Method method) {
@@ -133,8 +140,8 @@ public abstract class ForeignProvider {
             }
         });
     }
-    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallProxy(classLoader, clazz, address, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, int firstVarArgIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallProxy(classLoader, clazz, address, firstVarArgIndex, returnType, parameterTypes, (CallOption[]) null);
     }
     public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
                                long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
@@ -143,11 +150,11 @@ public abstract class ForeignProvider {
     public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
         return downcallProxy(classLoader, clazz, address, -1, returnType, parameterTypes);
     }
-    public <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return downcallProxy(null, clazz, address, firstVararg, returnType, parameterTypes, options);
+    public <T> T downcallProxy(Class<T> clazz, long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return downcallProxy(null, clazz, address, firstVarArgIndex, returnType, parameterTypes, options);
     }
-    public <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return downcallProxy(null, clazz, address, firstVararg, returnType, parameterTypes);
+    public <T> T downcallProxy(Class<T> clazz, long address, int firstVarArgIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        return downcallProxy(null, clazz, address, firstVarArgIndex, returnType, parameterTypes);
     }
     public <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return downcallProxy(null, clazz, address, returnType, parameterTypes, options);
@@ -155,21 +162,21 @@ public abstract class ForeignProvider {
     public <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
         return downcallProxy(null, clazz, address, returnType, parameterTypes);
     }
-    public abstract Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor);
-    public Object downcallProxy(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-        return downcallProxy(null, classes, callOptionVisitor);
+    public abstract Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, FunctionOptionVisitor functionOptionVisitor);
+    public Object downcallProxy(Class<?>[] classes, FunctionOptionVisitor functionOptionVisitor) {
+        return downcallProxy(null, classes, functionOptionVisitor);
     }
     @SuppressWarnings("unchecked")
-    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, CallOptionVisitor callOptionVisitor) {
-        return (T) downcallProxy(classLoader, new Class<?>[] { clazz }, callOptionVisitor);
+    public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, FunctionOptionVisitor functionOptionVisitor) {
+        return (T) downcallProxy(classLoader, new Class<?>[] { clazz }, functionOptionVisitor);
     }
-    public <T> T downcallProxy(Class<T> clazz, CallOptionVisitor callOptionVisitor) {
-        return downcallProxy(null, clazz, callOptionVisitor);
+    public <T> T downcallProxy(Class<T> clazz, FunctionOptionVisitor functionOptionVisitor) {
+        return downcallProxy(null, clazz, functionOptionVisitor);
     }
-    public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes) {
+    public Object downcallProxy(ClassLoader classLoader, Class<?>... classes) {
         return downcallProxy(classLoader, classes, null);
     }
-    public Object downcallProxy(Class<?>[] classes) {
+    public Object downcallProxy(Class<?>... classes) {
         return downcallProxy(classes, null);
     }
     public <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
@@ -178,14 +185,14 @@ public abstract class ForeignProvider {
     public <T> T downcallProxy(Class<T> clazz) {
         return downcallProxy(clazz, null);
     }
-    public abstract long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
-    public long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return upcallStub(object, method, firstVararg, returnType, parameterTypes, EMPTY_CALL_OPTION_ARRAY);
+    public abstract MemoryHandle upcallStub(Object object, Method method, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options);
+    public MemoryHandle upcallStub(Object object, Method method, int firstVarArgIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        return upcallStub(object, method, firstVarArgIndex, returnType, parameterTypes, (CallOption[]) null);
     }
-    public long upcallStub(Object object, Method method, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public MemoryHandle upcallStub(Object object, Method method, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return upcallStub(object, method, -1, returnType, parameterTypes, options);
     }
-    public long upcallStub(Object object, Method method, ForeignType returnType, ForeignType... parameterTypes) {
+    public MemoryHandle upcallStub(Object object, Method method, ForeignType returnType, ForeignType... parameterTypes) {
         return upcallStub(object, method, -1, returnType, parameterTypes);
     }
 

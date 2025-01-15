@@ -29,48 +29,43 @@ public class JNABufferProvider extends BufferProvider {
         return new Pointer(address).getByteBuffer(0, Integer.MAX_VALUE);
     }
 
-    private static final class BufferMethodHolder {
-        private BufferMethodHolder() {
-            throw new UnsupportedOperationException();
+    private static final Method baseMethod;
+    private static final Method sliceMethod;
+    private static final Method duplicateMethod;
+    static {
+        Method method;
+        try {
+            method = Buffer.class.getDeclaredMethod("base");
         }
-        public static final Method baseMethod;
-        public static final Method sliceMethod;
-        public static final Method duplicateMethod;
-        static {
-            Method method;
-            try {
-                method = Buffer.class.getDeclaredMethod("base");
-            }
-            catch (NoSuchMethodException e) {
-                method = null;
-            }
-            baseMethod = method;
-            try {
-                method = Buffer.class.getDeclaredMethod("duplicate");
-            }
-            catch (NoSuchMethodException e) {
-                method = null;
-            }
-            duplicateMethod = method;
-            try {
-                method = Buffer.class.getDeclaredMethod("slice", int.class, int.class);
-            }
-            catch (NoSuchMethodException e) {
-                method = null;
-            }
-            sliceMethod = method;
+        catch (NoSuchMethodException e) {
+            method = null;
         }
+        baseMethod = method;
+        try {
+            method = Buffer.class.getDeclaredMethod("duplicate");
+        }
+        catch (NoSuchMethodException e) {
+            method = null;
+        }
+        duplicateMethod = method;
+        try {
+            method = Buffer.class.getDeclaredMethod("slice", int.class, int.class);
+        }
+        catch (NoSuchMethodException e) {
+            method = null;
+        }
+        sliceMethod = method;
     }
 
     @Override
     public Object array(Buffer buffer) {
         if (buffer.isDirect()) return null;
         else if (buffer.isReadOnly()) {
-            if (BufferMethodHolder.baseMethod == null) {
+            if (baseMethod == null) {
                 if (isByteBuffer(buffer)) buffer = getByteBuffer(buffer);
                 try {
-                    return JNAUtil.UnsafeHolder.UNSAFE.getObject(buffer,
-                            JNAUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getField("hb")));
+                    return JNAUtil.UNSAFE.getObject(buffer,
+                            JNAUtil.UNSAFE.objectFieldOffset(buffer.getClass().getField("hb")));
                 } catch (RuntimeException | Error e) {
                     throw e;
                 } catch (Throwable e) {
@@ -79,7 +74,7 @@ public class JNABufferProvider extends BufferProvider {
             }
             else {
                 try {
-                    return JNAUtil.invoke(buffer, BufferMethodHolder.baseMethod);
+                    return JNAUtil.invoke(buffer, baseMethod);
                 } catch (RuntimeException | Error e) {
                     throw e;
                 } catch (Throwable e) {
@@ -95,13 +90,13 @@ public class JNABufferProvider extends BufferProvider {
         if (buffer.isDirect()) return 0;
         else if (buffer.isReadOnly()) {
             try {
-                return JNAUtil.UnsafeHolder.UNSAFE.getInt(buffer,
-                        JNAUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
+                return JNAUtil.UNSAFE.getInt(buffer,
+                        JNAUtil.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("offset")));
             } catch (NoSuchFieldException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             }
         }
-        else return buffer.arrayOffset() * JNAUtil.UnsafeHolder.UNSAFE.arrayIndexScale(buffer.array().getClass());
+        else return buffer.arrayOffset() * JNAUtil.UNSAFE.arrayIndexScale(buffer.array().getClass());
     }
 
     @Override
@@ -119,35 +114,30 @@ public class JNABufferProvider extends BufferProvider {
         if (buffer instanceof ByteBuffer) return (ByteBuffer) buffer;
         else if (buffer != null && buffer.getClass().getSimpleName().startsWith("ByteBufferAs")) {
             try {
-                return (ByteBuffer) JNAUtil.UnsafeHolder.UNSAFE.getObject(buffer,
-                        JNAUtil.UnsafeHolder.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
+                return (ByteBuffer) JNAUtil.UNSAFE.getObject(buffer,
+                        JNAUtil.UNSAFE.objectFieldOffset(buffer.getClass().getDeclaredField("bb")));
             } catch (NoSuchFieldException | ClassCastException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             }
         }
         else return null;
     }
 
-    private static final class InvokeCleanerMethodHolder {
-        private InvokeCleanerMethodHolder() {
-            throw new UnsupportedOperationException();
+    private static final Method invokeCleanerMethod;
+    static {
+        Method method;
+        try {
+            method = Unsafe.class.getDeclaredMethod("invokeCleaner", ByteBuffer.class);
+        } catch (NoSuchMethodException e) {
+            method = null;
         }
-        private static final Method invokeCleanerMethod;
-        static {
-            Method method;
-            try {
-                method = Unsafe.class.getDeclaredMethod("invokeCleaner", ByteBuffer.class);
-            } catch (NoSuchMethodException e) {
-                method = null;
-            }
-            invokeCleanerMethod = method;
-        }
+        invokeCleanerMethod = method;
     }
 
     private static void invokeCleaner(ByteBuffer buffer) {
-        if (InvokeCleanerMethodHolder.invokeCleanerMethod == null) {
+        if (invokeCleanerMethod == null) {
             if (!buffer.isDirect()) throw new IllegalArgumentException("buffer is non-direct");
-            if (attachmentOf(buffer) != null) throw new IllegalArgumentException("duplicate or slice");
+            if (getAttachment(buffer) != null) throw new IllegalArgumentException("duplicate or slice");
             try {
                 Object cleaner = JNAUtil.invoke(buffer, buffer.getClass().getMethod("cleaner"));
                 cleaner.getClass().getMethod("clean").invoke(cleaner);
@@ -159,9 +149,9 @@ public class JNABufferProvider extends BufferProvider {
         }
         else {
             try {
-                InvokeCleanerMethodHolder.invokeCleanerMethod.invoke(JNAUtil.UnsafeHolder.UNSAFE, buffer);
+                invokeCleanerMethod.invoke(JNAUtil.UNSAFE, buffer);
             } catch (IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             } catch (InvocationTargetException e) {
                 Throwable targetException = e.getTargetException();
                 if (targetException instanceof Error) throw (Error) targetException;
@@ -178,13 +168,13 @@ public class JNABufferProvider extends BufferProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Buffer> T attachmentOf(T buffer) {
+    private static <T extends Buffer> T getAttachment(T buffer) {
         if (buffer == null || !buffer.isDirect()) return null;
         else {
             try {
                 return (T) JNAUtil.invoke(buffer, buffer.getClass().getMethod("attachment"));
             } catch (NoSuchMethodException | ClassCastException | IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             } catch (RuntimeException | Error e) {
                 throw e;
             } catch (Throwable e) {
@@ -195,13 +185,13 @@ public class JNABufferProvider extends BufferProvider {
 
     @Override
     public <T extends Buffer> T attachment(T buffer) {
-        return attachmentOf(buffer);
+        return getAttachment(buffer);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <T extends Buffer> T slice(T buffer, int index, int length) {
-        if (BufferMethodHolder.sliceMethod == null) {
+        if (sliceMethod == null) {
             buffer = duplicate(buffer);
             int limit = limit(buffer);
             if ((limit | index | length) < 0 || length > limit - index)
@@ -219,9 +209,9 @@ public class JNABufferProvider extends BufferProvider {
         }
         else {
             try {
-                return (T) JNAUtil.invoke(buffer, BufferMethodHolder.sliceMethod, index, length);
+                return (T) JNAUtil.invoke(buffer, sliceMethod, index, length);
             } catch (ClassCastException | IllegalAccessException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             } catch (RuntimeException | Error e) {
                 throw e;
             } catch (Throwable e) {
@@ -238,7 +228,7 @@ public class JNABufferProvider extends BufferProvider {
     @SuppressWarnings("unchecked")
     @Override
     public <T extends Buffer> T duplicate(T buffer) {
-        if (BufferMethodHolder.duplicateMethod == null) {
+        if (duplicateMethod == null) {
             if (buffer instanceof ByteBuffer) return (T) ((ByteBuffer) buffer).duplicate();
             else if (buffer instanceof CharBuffer) return (T) ((CharBuffer) buffer).duplicate();
             else if (buffer instanceof ShortBuffer) return (T) ((ShortBuffer) buffer).duplicate();
@@ -260,9 +250,9 @@ public class JNABufferProvider extends BufferProvider {
         }
         else {
             try {
-                return (T) JNAUtil.invoke(buffer, BufferMethodHolder.duplicateMethod);
+                return (T) JNAUtil.invoke(buffer, duplicateMethod);
             } catch (ClassCastException e) {
-                throw new IllegalStateException("Unexpected exception");
+                throw new IllegalStateException("Unexpected exception", e);
             } catch (RuntimeException | Error e) {
                 throw e;
             } catch (Throwable e) {

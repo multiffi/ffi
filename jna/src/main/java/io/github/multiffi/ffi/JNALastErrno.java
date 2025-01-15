@@ -8,12 +8,7 @@ public final class JNALastErrno {
         throw new AssertionError("No io.github.multiffi.ffi.JNALastErrno instances for you!");
     }
 
-    private static final ThreadLocal<Integer> ERRNO_THREAD_LOCAL = new ThreadLocal<Integer>() {
-        @Override
-        protected Integer initialValue() {
-            return 0;
-        }
-    };
+    private static final ThreadLocal<Integer> ERRNO_THREAD_LOCAL = new ThreadLocal<>();
 
     public static int get() {
         return ERRNO_THREAD_LOCAL.get();

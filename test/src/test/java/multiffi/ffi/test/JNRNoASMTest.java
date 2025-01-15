@@ -6,7 +6,7 @@ public class JNRNoASMTest extends AbstractTest {
 
     @BeforeAll
     public static void beforeAll() {
-        System.setProperty("multiffi.ffi.jnr.noasm", "true");
+        System.setProperty("multiffi.foreign.proxyIntrinsics", "false");
         System.setProperty("multiffi.allocator.provider", "io.github.multiffi.ffi.JNRAllocatorProvider");
         System.setProperty("multiffi.buffer.provider", "io.github.multiffi.ffi.JNRBufferProvider");
         System.setProperty("multiffi.foreign.provider", "io.github.multiffi.ffi.JNRForeignProvider");

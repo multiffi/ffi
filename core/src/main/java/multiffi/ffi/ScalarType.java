@@ -1,5 +1,7 @@
 package multiffi.ffi;
 
+import io.github.multiffi.ffi.Util;
+
 public final class ScalarType extends ForeignType {
 
     /**
@@ -11,11 +13,11 @@ public final class ScalarType extends ForeignType {
      */
     public static final ScalarType UTF16 = new ScalarType(char.class, 2);
     /**
-     * Java {@code byte}; C/C++ {@code char} {@code int8_t}
+     * Java {@code byte}; C/C++ {@code int8_t}
      */
     public static final ScalarType INT8 = new ScalarType(byte.class, 1);
     /**
-     * Java {@code byte}; C/C++ {@code char} {@code int8_t}
+     * Java {@code byte}; C/C++ {@code char}
      */
     public static final ScalarType CHAR = new ScalarType(byte.class, 1);
     /**
@@ -64,10 +66,13 @@ public final class ScalarType extends ForeignType {
     public static final ScalarType DOUBLE = new ScalarType(double.class, 8);
 
     private final Class<?> carrier;
+    private final boolean numeric;
     private final long size;
 
     private ScalarType(Class<?> carrier, long size) {
         this.carrier = carrier;
+        this.numeric = carrier == byte.class || carrier == short.class || carrier == int.class || carrier == long.class
+                || carrier == float.class || carrier == double.class;
         this.size = size;
     }
 
@@ -94,6 +99,11 @@ public final class ScalarType extends ForeignType {
     @Override
     public boolean isArray() {
         return false;
+    }
+
+    @Override
+    public boolean isNumeric() {
+        return numeric;
     }
 
     @Override

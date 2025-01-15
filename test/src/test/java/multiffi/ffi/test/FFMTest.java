@@ -6,7 +6,7 @@ public class FFMTest extends AbstractTest {
 
     @BeforeAll
     public static void beforeAll() {
-        System.setProperty("multiffi.allocator.provider", "io.github.multiffi.ffi.FFMAllocatorProvider");
+        System.setProperty("multiffi.allocator.provider", "io.github.multiffi.ffi.FFMMemoryProvider");
         System.setProperty("multiffi.buffer.provider", "io.github.multiffi.ffi.FFMBufferProvider");
         System.setProperty("multiffi.foreign.provider", "io.github.multiffi.ffi.FFMForeignProvider");
     }

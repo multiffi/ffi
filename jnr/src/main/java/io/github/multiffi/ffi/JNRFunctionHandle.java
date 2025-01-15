@@ -2,7 +2,6 @@ package io.github.multiffi.ffi;
 
 import com.kenai.jffi.CallContext;
 import com.kenai.jffi.CallingConvention;
-import com.kenai.jffi.Type;
 import multiffi.ffi.CallOption;
 import multiffi.ffi.CompoundType;
 import multiffi.ffi.ForeignType;
@@ -16,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 public class JNRFunctionHandle extends FunctionHandle {
 
@@ -27,50 +25,52 @@ public class JNRFunctionHandle extends FunctionHandle {
     private final boolean saveErrno;
     private final List<ForeignType> parameterTypes;
     private final ForeignType returnType;
-    private final InvokeFunction invokeFunction;
+    private final InvocationDelegate<Object[], Object> delegate;
 
-    private interface InvokeFunction {
-        Object invoke(Object[] args);
-    }
-
-    private static final Object[] EMPTY_ARGUMENTS = new Object[0];
-    public JNRFunctionHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public JNRFunctionHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         boolean dyncall = false;
         boolean stdcall = false;
         boolean saveErrno = false;
-        for (CallOption option : options) {
-            if (option.equals(StandardCallOption.DYNCALL)) dyncall = true;
-            else if (option.equals(StandardCallOption.SAVE_ERRNO)) saveErrno = true;
-            else if (option.equals(StandardCallOption.STDCALL)) stdcall = true;
-            else if (!option.equals(StandardCallOption.TRIVIAL) && !option.equals(StandardCallOption.CRITICAL))
-                throw new IllegalArgumentException(option + " not supported");
+        if (options != null) {
+            for (CallOption option : options) {
+                if (option.equals(StandardCallOption.DYNCALL)) dyncall = true;
+                else if (option.equals(StandardCallOption.SAVE_ERRNO)) saveErrno = true;
+                else if (option.equals(StandardCallOption.STDCALL)) stdcall = true;
+                else if (!option.equals(StandardCallOption.TRIVIAL) && !option.equals(StandardCallOption.CRITICAL))
+                    throw new IllegalArgumentException(option + " not supported");
+            }
+            if (!JNRUtil.STDCALL_SUPPORTED) stdcall = false;
         }
-        if (!JNRUtil.STDCALL_AVAILABLE) stdcall = false;
         this.dyncall = dyncall;
         this.saveErrno = saveErrno;
+        int parameterCount = parameterTypes == null || parameterTypes.length == 1 && parameterTypes[0] == null ? 0 : parameterTypes.length;
         boolean addReturnMemoryParameter = returnType != null && returnType.isCompound();
-        List<ForeignType> parameterTypeList = new ArrayList<>(parameterTypes.length + (addReturnMemoryParameter ? 1 : 0));
-        parameterTypeList.addAll(Arrays.asList(parameterTypes));
-        if (addReturnMemoryParameter) parameterTypeList.add(0, returnType);
         this.returnType = returnType;
-        this.parameterTypes = Collections.unmodifiableList(parameterTypeList);
-        this.firstVarArgIndex = firstVararg >= 0 ? firstVararg : (dyncall ? parameterTypes.length : -1);
+        if (parameterCount == 0) this.parameterTypes = addReturnMemoryParameter ? Collections.singletonList(returnType) : Collections.emptyList();
+        else {
+            List<ForeignType> list = new ArrayList<>(parameterCount + (addReturnMemoryParameter ? 1 : 0));
+            if (addReturnMemoryParameter) list.add(returnType);
+            list.addAll(Arrays.asList(parameterTypes));
+            this.parameterTypes = Collections.unmodifiableList(list);
+        }
+        this.firstVarArgIndex = firstVarArgIndex >= 0 ? Math.min(firstVarArgIndex, parameterCount) : (dyncall ? parameterCount : -1);
         this.convention = stdcall ? CallingConvention.STDCALL : CallingConvention.DEFAULT;
         this.address = address;
-        InvokeFunction function;
-        if (dyncall) function = args -> {
-            Object varargs = args[args.length - 1];
+        InvocationDelegate<Object[], Object> delegate;
+        if (dyncall) delegate = args -> {
+            if (args == null || args.length != this.parameterTypes.size() + 1) throw new ArrayIndexOutOfBoundsException("length mismatch");
+            int fixedArgsLength = args.length - 1;
+            Object varargs = args[fixedArgsLength];
             if (!varargs.getClass().isArray()) throw new IllegalArgumentException("Last argument must be array as variadic arguments");
             int varargsLength = Array.getLength(varargs);
-            Object[] arguments = new Object[args.length - 1 + varargsLength];
-            System.arraycopy(args, 0, arguments, 0, args.length - 1);
-            System.arraycopy(varargs, 0, arguments, args.length - 1, varargsLength);
-            args = arguments;
-            List<ForeignType> parameterForeignTypes = new ArrayList<>(args.length);
+            Object[] arguments = new Object[fixedArgsLength + varargsLength];
+            System.arraycopy(args, 0, arguments, 0, fixedArgsLength);
+            System.arraycopy(varargs, 0, arguments, fixedArgsLength, varargsLength);
+            List<ForeignType> parameterForeignTypes = new ArrayList<>(arguments.length);
             parameterForeignTypes.addAll(JNRFunctionHandle.this.parameterTypes);
             if (addReturnMemoryParameter) parameterForeignTypes.remove(0);
-            for (int i = JNRFunctionHandle.this.parameterTypes.size(); i < args.length; i ++) {
-                Object arg = args[i];
+            for (int i = JNRFunctionHandle.this.parameterTypes.size(); i < arguments.length; i ++) {
+                Object arg = arguments[i];
                 if (arg instanceof Boolean) parameterForeignTypes.add(ScalarType.BOOLEAN);
                 else if (arg instanceof Character) parameterForeignTypes.add(ScalarType.UTF16);
                 else if (arg instanceof Byte) parameterForeignTypes.add(ScalarType.INT8);
@@ -86,33 +86,25 @@ public class JNRFunctionHandle extends FunctionHandle {
                     parameterForeignTypes.add(CompoundType.ofArray(ScalarType.INT8, size));
                 }
             }
-            CallContext context = CallContext.getCallContext(JNRUtil.toFFIType(returnType), toFFITypes(parameterForeignTypes), convention, JNRFunctionHandle.this.saveErrno);
+            CallContext context = CallContext.getCallContext(JNRUtil.toFFIType(returnType), JNRUtil.toFFITypes(parameterForeignTypes), convention, JNRFunctionHandle.this.saveErrno);
             parameterForeignTypes.add(0, returnType);
             JNRInvoker invoker = JNRInvoker.getSupportedInvoker(context, returnType, parameterForeignTypes, convention);
-            return invoker.invoke(context, returnType, parameterForeignTypes, address, args);
+            return invoker.invoke(context, returnType, parameterForeignTypes, address, arguments);
         };
         else {
-            CallContext context = CallContext.getCallContext(JNRUtil.toFFIType(returnType), JNRUtil.toFFITypes(parameterTypes), convention, saveErrno);
+            CallContext context = CallContext.getCallContext(JNRUtil.toFFIType(returnType), parameterTypes == null ? JNRUtil.EMPTY_TYPE_ARRAY : JNRUtil.toFFITypes(parameterTypes), convention, saveErrno);
             JNRInvoker invoker = JNRInvoker.getSupportedInvoker(context, returnType, this.parameterTypes, convention);
-            function = args -> invoker.invoke(context, returnType, JNRFunctionHandle.this.parameterTypes, address, args == null ? EMPTY_ARGUMENTS : args.clone());
+            delegate = args -> invoker.invoke(context, returnType, JNRFunctionHandle.this.parameterTypes, address, args == null ? Util.EMPTY_OBJECT_ARRAY : args.clone());
         }
-        if (saveErrno) invokeFunction = args -> {
+        if (saveErrno) this.delegate = args -> {
             try {
-                return function.invoke(args);
+                return delegate.invoke(args);
             }
             finally {
                 JNRLastErrno.dump();
             }
         };
-        else invokeFunction = function;
-    }
-
-    private static Type[] toFFITypes(List<ForeignType> foreignTypes) {
-        Type[] types = new Type[foreignTypes.size()];
-        for (int i = 0; i < foreignTypes.size(); i ++) {
-            types[i] = JNRUtil.toFFIType(Objects.requireNonNull(foreignTypes.get(i)));
-        }
-        return types;
+        else this.delegate = delegate;
     }
 
     @Override
@@ -162,62 +154,62 @@ public class JNRFunctionHandle extends FunctionHandle {
 
     @Override
     public void invokeVoid(Object... args) {
-        invokeFunction.invoke(args);
+        delegate.invoke(args);
     }
 
     @Override
     public boolean invokeBoolean(Object... args) {
-        return (boolean) invokeFunction.invoke(args);
+        return (boolean) delegate.invoke(args);
     }
 
     @Override
     public byte invokeInt8(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).byteValue();
+        return ((Number) delegate.invoke(args)).byteValue();
     }
 
     @Override
     public char invokeUTF16(Object... args) {
-        return (char) invokeFunction.invoke(args);
+        return (char) delegate.invoke(args);
     }
 
     @Override
     public short invokeInt16(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).shortValue();
+        return ((Number) delegate.invoke(args)).shortValue();
     }
 
     @Override
     public int invokeInt32(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).intValue();
+        return ((Number) delegate.invoke(args)).intValue();
     }
 
     @Override
     public long invokeInt64(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).longValue();
+        return ((Number) delegate.invoke(args)).longValue();
     }
 
     @Override
     public float invokeFloat(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).floatValue();
+        return ((Number) delegate.invoke(args)).floatValue();
     }
 
     @Override
     public double invokeDouble(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).doubleValue();
+        return ((Number) delegate.invoke(args)).doubleValue();
     }
 
     @Override
     public long invokeAddress(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).longValue();
+        return ((Number) delegate.invoke(args)).longValue();
     }
 
     @Override
     public MemoryHandle invokeCompound(Object... args) {
-        return (MemoryHandle) invokeFunction.invoke(args);
+        return (MemoryHandle) delegate.invoke(args);
     }
 
     @Override
     public Object invoke(Object... args) {
-        return invokeFunction.invoke(args);
+        return delegate.invoke(args);
     }
 
 }

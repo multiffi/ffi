@@ -63,6 +63,10 @@ public final class Buffers {
         return IMPLEMENTATION.wrapBytes(address);
     }
 
+    public static ByteBuffer wrapBytes(MemoryHandle memoryHandle) {
+        return IMPLEMENTATION.wrapBytes(memoryHandle);
+    }
+
     public static CharBuffer allocateChars(int capacity) {
         return IMPLEMENTATION.allocateChars(capacity);
     }

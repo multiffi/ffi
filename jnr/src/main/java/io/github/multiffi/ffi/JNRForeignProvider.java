@@ -5,53 +5,39 @@ import com.kenai.jffi.Closure;
 import com.kenai.jffi.ClosureManager;
 import com.kenai.jffi.Type;
 import com.kenai.jffi.internal.Cleaner;
-import jnr.ffi.Memory;
-import jnr.ffi.NativeType;
-import jnr.ffi.Platform;
-import jnr.ffi.Pointer;
 import multiffi.ffi.CallOption;
-import multiffi.ffi.CallOptionVisitor;
+import multiffi.ffi.FunctionOptionVisitor;
 import multiffi.ffi.Foreign;
 import multiffi.ffi.ForeignType;
 import multiffi.ffi.FunctionHandle;
 import multiffi.ffi.MemoryHandle;
 import multiffi.ffi.ScalarType;
-import multiffi.ffi.SimpleCallOptionVisitor;
 import multiffi.ffi.StandardCallOption;
 import multiffi.ffi.spi.ForeignProvider;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 public class JNRForeignProvider extends ForeignProvider {
 
     public JNRForeignProvider() {
-        this(false);
+        this(true);
     }
 
-    private final boolean noasm;
-    public JNRForeignProvider(boolean noasm) {
-        this.noasm = noasm;
+    private final boolean proxyIntrinsics;
+    public JNRForeignProvider(boolean proxyIntrinsics) {
+        this.proxyIntrinsics = proxyIntrinsics;
     }
 
     @Override
     public long addressSize() {
-        return JNRUtil.UnsafeHolder.RUNTIME.addressSize();
+        return JNRUtil.ADDRESS_SIZE;
     }
 
     @Override
@@ -66,7 +52,7 @@ public class JNRForeignProvider extends ForeignProvider {
 
     @Override
     public long longSize() {
-        return JNRUtil.UnsafeHolder.RUNTIME.longSize();
+        return JNRUtil.LONG_SIZE;
     }
 
     @Override
@@ -76,54 +62,47 @@ public class JNRForeignProvider extends ForeignProvider {
 
     @Override
     public long pageSize() {
-        return JNRUtil.UnsafeHolder.PAGE_MANAGER.pageSize();
+        return JNRUtil.PAGE_SIZE;
     }
 
-    private static final class CharsetHolder {
-        private CharsetHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final Charset UTF16_CHARSET = JNRUtil.IS_BIG_ENDIAN ? Charset.forName("UTF-16BE") : Charset.forName("UTF-16LE");
-        public static final Charset UTF32_CHARSET = JNRUtil.IS_BIG_ENDIAN ? Charset.forName("UTF-32BE") : Charset.forName("UTF-32LE");
-        public static final Charset WIDE_CHARSET = JNRUtil.WCHAR_SIZE == 2 ? UTF16_CHARSET : UTF32_CHARSET;
-        public static final Charset ANSI_CHARSET = Charset.forName(System.getProperty("native.encoding", System.getProperty("sun.jnu.encoding", Charset.defaultCharset().name())));
+    @Override
+    public long alignmentSize() {
+        return JNRUtil.ALIGNMENT_SIZE;
     }
 
     @Override
     public Charset ansiCharset() {
-        return CharsetHolder.ANSI_CHARSET;
+        return JNRUtil.ANSI_CHARSET;
     }
 
     @Override
     public Charset wideCharset() {
-        return CharsetHolder.WIDE_CHARSET;
+        return JNRUtil.WIDE_CHARSET;
     }
 
     @Override
     public Charset utf16Charset() {
-        return CharsetHolder.UTF16_CHARSET;
+        return JNRUtil.UTF16_CHARSET;
     }
 
     @Override
     public Charset utf32Charset() {
-        return CharsetHolder.UTF32_CHARSET;
+        return JNRUtil.UTF32_CHARSET;
     }
 
     @Override
     public void sneakyThrows(Throwable throwable) {
-        if (throwable != null) JNRUtil.UnsafeHolder.UNSAFE.throwException(throwable);
+        if (throwable != null) JNRUtil.UNSAFE.throwException(throwable);
     }
-
-    private static final Runtime RUNTIME = Runtime.getRuntime();
 
     @Override
     public void exit(int status) {
-        RUNTIME.exit(status);
+        Runtime.getRuntime().exit(status);
     }
 
     @Override
     public void halt(int status) {
-        RUNTIME.halt(status);
+        Runtime.getRuntime().halt(status);
     }
 
     @Override
@@ -163,14 +142,6 @@ public class JNRForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public String getStackTraceString(Throwable throwable) {
-        if (throwable == null) return null;
-        StringWriter writer = new StringWriter();
-        throwable.printStackTrace(new PrintWriter(writer));
-        return writer.toString();
-    }
-
-    @Override
     public boolean isBigEndian() {
         return JNRUtil.IS_BIG_ENDIAN;
     }
@@ -182,29 +153,17 @@ public class JNRForeignProvider extends ForeignProvider {
 
     @Override
     public ByteOrder endianness() {
-        return ByteOrder.nativeOrder();
+        return JNRUtil.NATIVE_ORDER;
     }
 
     @Override
-    public void loadLibrary(String libraryName) throws IOException {
-        Objects.requireNonNull(libraryName);
-        try {
-            JNRLibraryLookup.loadLibrary(libraryName, JNRLibraryLookup.DefaultLibraryPathHolder.DEFAULT_SEARCH_PATHS, Collections.emptyMap());
-        }
-        catch (UnsatisfiedLinkError e) {
-            throw new IOException(e.getMessage());
-        }
+    public void loadLibrary(String libraryName) throws UnsatisfiedLinkError {
+        JNRLibraryLookup.loadLibrary(libraryName);
     }
 
     @Override
-    public void loadLibrary(File libraryFile) throws IOException {
-        Objects.requireNonNull(libraryFile);
-        try {
-            JNRLibraryLookup.loadLibrary(libraryFile.getAbsolutePath(), JNRLibraryLookup.DefaultLibraryPathHolder.DEFAULT_SEARCH_PATHS, Collections.emptyMap());
-        }
-        catch (UnsatisfiedLinkError e) {
-            throw new IOException(e.getMessage());
-        }
+    public void loadLibrary(File libraryFile) throws UnsatisfiedLinkError {
+        JNRLibraryLookup.loadLibrary(libraryFile);
     }
 
     @Override
@@ -214,13 +173,7 @@ public class JNRForeignProvider extends ForeignProvider {
 
     @Override
     public String mapLibraryName(String libraryName) {
-        if (libraryName == null) return null;
-        else if (new File(libraryName).isAbsolute()) return libraryName;
-        else if (JNRUtil.PLATFORM.getOS() == Platform.OS.AIX) {
-            if ("lib.*\\.(so|a\\(shr.o\\)|a\\(shr_64.o\\)|a|so.[\\.0-9]+)$".matches(libraryName)) return libraryName;
-            else return "lib" + libraryName + ".a";
-        }
-        else return JNRUtil.PLATFORM.mapLibraryName(libraryName);
+        return JNRUtil.mapLibraryName(libraryName);
     }
 
     @Override
@@ -233,229 +186,56 @@ public class JNRForeignProvider extends ForeignProvider {
         JNRLastErrno.set(errno);
     }
 
-    private static final class ErrorStringMapperHolder {
-        private ErrorStringMapperHolder() {
-            throw new UnsupportedOperationException();
-        }
-        private static final class Windows {
-            private Windows() {
-                throw new UnsupportedOperationException();
-            }
-            private static final ThreadLocal<Pointer> POINTER_THREAD_LOCAL = new ThreadLocal<Pointer>() {
-                @Override
-                protected Pointer initialValue() {
-                    return Memory.allocateDirect(JNRUtil.UnsafeHolder.RUNTIME, NativeType.ADDRESS);
-                }
-            };
-            public static String strerror(int errno) {
-                Pointer lpBuffer = POINTER_THREAD_LOCAL.get();
-                lpBuffer.putAddress(0, 0L);
-                try {
-                    if (JNRLibraries.Kernel32.INSTANCE.FormatMessageW(0x00001000 /* FORMAT_MESSAGE_FROM_SYSTEM */ | 0x00000100 /* FORMAT_MESSAGE_ALLOCATE_BUFFER */,
-                            0L,
-                            errno,
-                            0,
-                            lpBuffer.address(),
-                            0,
-                            0L) == 0) return "FormatMessage failed with 0x" + Integer.toHexString(errno);
-                    else return lpBuffer.getPointer(0).getString(0, Integer.MAX_VALUE - 8, CharsetHolder.WIDE_CHARSET);
-                } finally {
-                    Pointer hMem = lpBuffer.getPointer(0);
-                    if (hMem != null) JNRLibraries.Kernel32.INSTANCE.LocalFree(hMem.address());
-                }
-            }
-        }
-    }
-
     @Override
     public String getErrorString(int errno) {
-        if (JNRUtil.PLATFORM.getOS() == Platform.OS.WINDOWS) return ErrorStringMapperHolder.Windows.strerror(errno);
-        else {
-            long errorString = JNRLibraries.CLibrary.INSTANCE.strerror(errno);
-            return errorString == 0L ? "strerror failed with 0x" + Integer.toHexString(errno) :
-                    CharsetHolder.ANSI_CHARSET.decode(ByteBuffer.wrap(JNRUtil.UnsafeHolder.MEMORY_IO.getZeroTerminatedByteArray(errorString))).toString();
-        }
+        return JNRUtil.getErrorString(errno);
     }
 
     @Override
-    public FunctionHandle downcallHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return new JNRFunctionHandle(address, firstVararg, returnType, parameterTypes, options);
-    }
-
-    private static class ForeignInvocationHandler implements InvocationHandler {
-        private final Map<Method, FunctionHandle> functionHandleMap;
-        public ForeignInvocationHandler(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-            Map<Method, FunctionHandle> functionHandleMap = new HashMap<>();
-            for (Class<?> clazz : classes) {
-                for (Method method : clazz.getMethods()) {
-                    String methodName = method.getName();
-                    Class<?> returnType = method.getReturnType();
-                    Class<?>[] parameterTypes = method.getParameterTypes();
-                    if (methodName.equals("hashCode") && returnType == int.class && parameterTypes.length == 0) continue;
-                    else if (methodName.equals("equals") && returnType == boolean.class && parameterTypes.length == 1) continue;
-                    else if (methodName.equals("toString") && returnType == String.class && parameterTypes.length == 0) continue;
-                    else {
-                        long address = callOptionVisitor.visitAddress(method);
-                        int firstVarargIndex = callOptionVisitor.visitFirstVarArgIndex(method);
-                        ForeignType returnForeignType = callOptionVisitor.visitReturnType(method);
-                        ForeignType[] parameterForeignTypes = callOptionVisitor.visitParameterTypes(method).clone();
-                        CallOption[] callOptions = callOptionVisitor.visitCallOptions(method);
-                        FunctionHandle functionHandle = new JNRFunctionHandle(address, firstVarargIndex, returnForeignType, parameterForeignTypes, callOptions);
-                        functionHandleMap.put(method, functionHandle);
-                    }
-                }
-            }
-            this.functionHandleMap = Collections.unmodifiableMap(functionHandleMap);
-        }
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            String methodName = method.getName();
-            Class<?> returnType = method.getReturnType();
-            Class<?>[] parameterTypes = method.getParameterTypes();
-            if (methodName.equals("hashCode") && returnType == int.class && parameterTypes.length == 0)
-                return hashCode();
-            else if (methodName.equals("equals") && returnType == boolean.class && parameterTypes.length == 1) {
-                Object other = args[0];
-                if (other == null) return false;
-                if (Proxy.isProxyClass(other.getClass())) other = Proxy.getInvocationHandler(other);
-                else if (!(other instanceof InvocationHandler)) return false;
-                return this == other;
-            }
-            else if (methodName.equals("toString") && returnType == String.class && parameterTypes.length == 0)
-                return proxy.getClass().getName() + "@" + Integer.toHexString(hashCode());
-            else {
-                Object result = functionHandleMap.get(method).invoke(args);
-                if (returnType == void.class) return null;
-                else if (returnType == boolean.class) return (Boolean) result;
-                else if (returnType == char.class) return (Character) result;
-                else if (returnType == byte.class) return ((Number) result).byteValue();
-                else if (returnType == short.class) return ((Number) result).shortValue();
-                else if (returnType == int.class) return ((Number) result).intValue();
-                else if (returnType == long.class) return ((Number) result).longValue();
-                else if (returnType == float.class) return ((Number) result).floatValue();
-                else if (returnType == double.class) return ((Number) result).doubleValue();
-                else return (MemoryHandle) result;
-            }
-        }
-    }
-
-    public static final class GetCallerClassHolder {
-        private GetCallerClassHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final Method getCallerClassReflectionMethod;
-        public static final Method getInstanceStackWalkerMethod;
-        public static final Method getCallerClassStackWalkerMethod;
-        public static final Object retainClassReferenceOption;
-        static {
-            Method method;
-            try {
-                Class<?> reflectionClass = Class.forName("sun.reflect.Reflection");
-                method = reflectionClass.getDeclaredMethod("getCallerClass");
-            } catch (ClassNotFoundException | NoSuchMethodException e) {
-                method = null;
-            }
-            getCallerClassReflectionMethod = method;
-            if (getCallerClassReflectionMethod == null) {
-                Class<?> stackWalkerClass;
-                Class<?> stackWalkerOptionClass;
-                try {
-                    stackWalkerClass = Class.forName("java.lang.StackWalker");
-                    stackWalkerOptionClass = Class.forName("java.lang.StackWalker$Option");
-
-                } catch (ClassNotFoundException e) {
-                    stackWalkerClass = null;
-                    stackWalkerOptionClass = null;
-                }
-                if (stackWalkerClass != null) {
-                    Method _getInstanceStackWalkerMethod;
-                    Method _getCallerClassStackWalkerMethod;
-                    Object _retainClassReferenceOption;
-                    try {
-                        _getInstanceStackWalkerMethod = stackWalkerClass.getDeclaredMethod("getInstance", stackWalkerOptionClass);
-                        _getCallerClassStackWalkerMethod = stackWalkerClass.getDeclaredMethod("getCallerClass");
-                        Field field = stackWalkerOptionClass.getDeclaredField("RETAIN_CLASS_REFERENCE");
-                        _retainClassReferenceOption = field.get(null);
-
-                    } catch (NoSuchMethodException | NoSuchFieldException | IllegalAccessException e) {
-                        _getInstanceStackWalkerMethod = null;
-                        _getCallerClassStackWalkerMethod = null;
-                        _retainClassReferenceOption = null;
-                    }
-                    getInstanceStackWalkerMethod = _getInstanceStackWalkerMethod;
-                    getCallerClassStackWalkerMethod = _getCallerClassStackWalkerMethod;
-                    retainClassReferenceOption = _retainClassReferenceOption;
-                }
-                else {
-                    getInstanceStackWalkerMethod = null;
-                    getCallerClassStackWalkerMethod = null;
-                    retainClassReferenceOption = null;
-                }
-            }
-            else {
-                getInstanceStackWalkerMethod = null;
-                getCallerClassStackWalkerMethod = null;
-                retainClassReferenceOption = null;
-            }
-        }
+    public FunctionHandle downcallHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return new JNRFunctionHandle(address, firstVarArgIndex, returnType, parameterTypes, options);
     }
 
     @Override
-    public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-        if (callOptionVisitor == null) callOptionVisitor = new SimpleCallOptionVisitor();
-        if (classLoader == null) {
-            Class<?> clazz;
-            try {
-                if (GetCallerClassHolder.getCallerClassReflectionMethod != null)
-                    clazz = (Class<?>) GetCallerClassHolder.getCallerClassReflectionMethod.invoke(null);
-                else if (GetCallerClassHolder.getInstanceStackWalkerMethod != null) {
-                    Object stackWalker = GetCallerClassHolder.getInstanceStackWalkerMethod.invoke(
-                            null, GetCallerClassHolder.retainClassReferenceOption
-                    );
-                    clazz = (Class<?>) GetCallerClassHolder.getCallerClassStackWalkerMethod.invoke(stackWalker);
-                }
-                else clazz = null;
-            } catch (InvocationTargetException | IllegalAccessException e) {
-                clazz = null;
-            }
-            classLoader = clazz == null ? ClassLoader.getSystemClassLoader() : clazz.getClassLoader();
-        }
-        if (classes.length == 0) return null;
-        else {
-            if (!noasm && JNRUtil.ASM_AVAILABLE) {
-                try {
-                    return JNRASMRuntime.generateProxy(classLoader, classes, callOptionVisitor);
-                }
-                catch (Throwable ignored) {
-                }
-            }
-            return Proxy.newProxyInstance(classLoader, classes, new ForeignInvocationHandler(classes, callOptionVisitor));
-        }
+    public Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, FunctionOptionVisitor functionOptionVisitor) {
+        if (functionOptionVisitor == null) functionOptionVisitor = Util.DEFAULT_SIGNATURE_VISITOR;
+        if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+        return (proxyIntrinsics && JNRUtil.PROXY_INTRINSICS) ? JNRASMRuntime.generateProxy(classLoader, classes, functionOptionVisitor) :
+                classes == null || classes.length == 0 ? null : Proxy.newProxyInstance(classLoader, classes, new ForeignInvocationHandler(this, classes, functionOptionVisitor));
     }
 
     @Override
-    public long upcallStub(Object object, Method method, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public MemoryHandle upcallStub(Object object, Method method, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         boolean isStatic = Modifier.isStatic(method.getModifiers());
         if (!isStatic) Objects.requireNonNull(object);
         boolean stdcall = false;
-        for (CallOption option : options) {
-            if (option.equals(StandardCallOption.STDCALL)) {
-                stdcall = true;
-                continue;
+        if (options != null) {
+            for (CallOption option : options) {
+                if (option.equals(StandardCallOption.STDCALL)) {
+                    stdcall = true;
+                    continue;
+                }
+                throw new IllegalArgumentException(option + " not supported");
             }
-            throw new IllegalArgumentException(option + " not supported");
+            if (!JNRUtil.STDCALL_SUPPORTED) stdcall = false;
         }
-        if (!JNRUtil.STDCALL_AVAILABLE) stdcall = false;
-        Type returnFFIType = JNRUtil.toFFIType(returnType);
-        Type[] parameterFFITypes = JNRUtil.toFFITypes(parameterTypes);
-        Class<?>[] methodParameterTypes = method.getParameterTypes();
-        for (int i = 0; i < methodParameterTypes.length; i ++) {
-            JNRUtil.checkType(parameterTypes[i], methodParameterTypes[i]);
-        }
-        Closure closure = buffer -> {
-            Object[] args = new Object[parameterTypes.length];
-            int index = 0;
+        Type[] parameterFFITypes;
+        if (parameterTypes == null || parameterTypes.length == 1 && parameterTypes[0] == null)
+            parameterFFITypes = JNRUtil.EMPTY_TYPE_ARRAY;
+        else {
+            Class<?>[] methodParameterTypes = method.getParameterTypes();
+            parameterFFITypes = new Type[parameterTypes.length];
             for (int i = 0; i < parameterTypes.length; i ++) {
+                parameterFFITypes[i] = JNRUtil.toFFIType(Objects.requireNonNull(parameterTypes[i]));
+                Util.checkType(parameterTypes[i], methodParameterTypes[i]);
+            }
+        }
+        Type returnFFIType = JNRUtil.toFFIType(returnType);
+        Util.checkType(returnType, method.getReturnType());
+        Closure closure = buffer -> {
+            Object[] args = new Object[parameterFFITypes.length];
+            int index = 0;
+            for (int i = 0; i < parameterFFITypes.length; i ++) {
                 ForeignType parameterType = parameterTypes[i];
                 if (parameterType == ScalarType.BOOLEAN) args[i] = buffer.getByte(index) != 0;
                 else if (parameterType == ScalarType.INT8 || parameterType == ScalarType.CHAR) args[i] = buffer.getByte(index);
@@ -480,7 +260,7 @@ public class JNRForeignProvider extends ForeignProvider {
                     if (Foreign.addressSize() == 4L) index ++;
                 }
                 else if (parameterType == ScalarType.ADDRESS) args[i] = buffer.getAddress(index);
-                else args[i] = MemoryHandle.wrap(buffer.getStruct(index));
+                else args[i] = MemoryHandle.wrap(buffer.getStruct(index), parameterFFITypes[i].size());
             }
             Object result;
             try {
@@ -525,8 +305,14 @@ public class JNRForeignProvider extends ForeignProvider {
         Closure.Handle handle = ClosureManager.getInstance().newClosure(closure,
                 returnFFIType, parameterFFITypes, stdcall ? CallingConvention.STDCALL : CallingConvention.DEFAULT);
         handle.setAutoRelease(false);
-        Cleaner.register(isStatic ? method.getDeclaringClass() : object, handle::dispose);
-        return handle.getAddress();
+        Runnable cleanup = Cleaner.register(isStatic ? method.getDeclaringClass() : object, handle::dispose);
+        long address = handle.getAddress();
+        return new DirectWrapperMemoryHandle(address, 0) {
+            @Override
+            protected void free(long address) {
+                cleanup.run();
+            }
+        };
     }
 
     @Override

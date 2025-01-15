@@ -1,7 +1,11 @@
 package multiffi.ffi;
 
+import io.github.multiffi.ffi.DirectAlignedMemoryHandle;
+import io.github.multiffi.ffi.DirectBufferMemoryHandle;
 import io.github.multiffi.ffi.DirectMemoryHandle;
+import io.github.multiffi.ffi.DirectWrapperMemoryHandle;
 import io.github.multiffi.ffi.HeapMemoryHandle;
+import io.github.multiffi.ffi.Util;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -24,6 +28,57 @@ import java.nio.charset.Charset;
 public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoCloseable {
 
     public static final MemoryHandle NIL = MemoryHandle.wrap(0);
+
+    public static MemoryHandle ofBuffer(ByteBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofBuffer(CharBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofBuffer(ShortBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofBuffer(IntBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofBuffer(LongBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofBuffer(FloatBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofBuffer(DoubleBuffer buffer) {
+        if (buffer.isDirect()) return new DirectBufferMemoryHandle(buffer, buffer.capacity());
+        else return wrap(buffer);
+    }
+
+    public static MemoryHandle ofAddress(long address) {
+        return ofAddress(address, -1);
+    }
+
+    public static MemoryHandle ofAddress(long address, long size) {
+        return new DirectMemoryHandle(address, size);
+    }
+
+    public static MemoryHandle ofAlignedAddress(long address) {
+        return ofAlignedAddress(address, -1);
+    }
+
+    public static MemoryHandle ofAlignedAddress(long address, long size) {
+        return new DirectAlignedMemoryHandle(address, size);
+    }
 
     /**
      * Wraps a Java {@code byte} array in a {@link MemoryHandle} instance.
@@ -213,7 +268,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      * @return a {@code MemoryHandle} instance.
      */
     public static MemoryHandle wrap(long address, long size) {
-        return new DirectMemoryHandle(address, size);
+        return new DirectWrapperMemoryHandle(address, size);
     }
 
     /**
@@ -299,7 +354,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     }
 
     public static MemoryHandle allocateDirect(long size) {
-        return wrap(Allocator.allocate(size), size);
+        return ofAddress(Memory.allocate(size), size);
     }
 
     public static MemoryHandle allocateDirect(CharSequence string) {
@@ -318,12 +373,84 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         return memoryHandle;
     }
 
+    public static MemoryHandle allocateAlignedDirect(long size, long alignment) {
+        return ofAlignedAddress(Memory.allocateAligned(size, alignment), size);
+    }
+
+    public static MemoryHandle allocateAlignedDirect(CharSequence string, long alignment) {
+        return allocateAlignedDirect(string, null, alignment);
+    }
+
+    public static MemoryHandle allocateAlignedDirect(CharSequence string, Charset charset, long alignment) {
+        if (charset == null) charset = Foreign.ansiCharset();
+        byte[] bytes;
+        if (string instanceof String) bytes = ((String) string).getBytes(charset);
+        else bytes = charset.encode(CharBuffer.wrap(string)).array();
+        byte[] terminator = "\0".getBytes(charset);
+        MemoryHandle memoryHandle = allocateAlignedDirect(bytes.length + terminator.length, alignment);
+        memoryHandle.setInt8Array(bytes.length, terminator);
+        memoryHandle.setInt8Array(0, bytes);
+        return memoryHandle;
+    }
+
+    public static MemoryHandle allocateOnStack(long size) {
+        return wrap(Memory.allocateOnStack(size), size);
+    }
+
+    public static MemoryHandle allocateOnStack(CharSequence string) {
+        return allocateOnStack(string, null);
+    }
+
+    public static MemoryHandle allocateOnStack(CharSequence string, Charset charset) {
+        if (charset == null) charset = Foreign.ansiCharset();
+        byte[] bytes;
+        if (string instanceof String) bytes = ((String) string).getBytes(charset);
+        else bytes = charset.encode(CharBuffer.wrap(string)).array();
+        byte[] terminator = "\0".getBytes(charset);
+        MemoryHandle memoryHandle = allocateOnStack(bytes.length + terminator.length);
+        memoryHandle.setInt8Array(bytes.length, terminator);
+        memoryHandle.setInt8Array(0, bytes);
+        return memoryHandle;
+    }
+
+    public static MemoryHandle allocateAlignedOnStack(long size, long alignment) {
+        return wrap(Memory.allocateAlignedOnStack(size, alignment), size);
+    }
+
+    public static MemoryHandle allocateAlignedOnStack(CharSequence string, long alignment) {
+        return allocateAlignedOnStack(string, null, alignment);
+    }
+
+    public static MemoryHandle allocateAlignedOnStack(CharSequence string, Charset charset, long alignment) {
+        if (charset == null) charset = Foreign.ansiCharset();
+        byte[] bytes;
+        if (string instanceof String) bytes = ((String) string).getBytes(charset);
+        else bytes = charset.encode(CharBuffer.wrap(string)).array();
+        byte[] terminator = "\0".getBytes(charset);
+        MemoryHandle memoryHandle = allocateAlignedOnStack(bytes.length + terminator.length, alignment);
+        memoryHandle.setInt8Array(bytes.length, terminator);
+        memoryHandle.setInt8Array(0, bytes);
+        return memoryHandle;
+    }
+
     public static MemoryHandle allocate(ForeignType type) {
         return allocate(type.size());
     }
 
     public static MemoryHandle allocateDirect(ForeignType type) {
         return allocateDirect(type.size());
+    }
+
+    public static MemoryHandle allocateAlignedDirect(ForeignType type, long alignment) {
+        return allocateAlignedDirect(type.size(), alignment);
+    }
+
+    public static MemoryHandle allocateOnStack(ForeignType type) {
+        return allocateOnStack(type.size());
+    }
+
+    public static MemoryHandle allocateAlignedOnStack(ForeignType type, long alignment) {
+        return allocateAlignedOnStack(type.size(), alignment);
     }
 
     /**
@@ -349,14 +476,14 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         if (isDirect()) {
             long size = size();
             if (size == -1) {
-                return getClass().getName()
+                return "MemoryHandle"
                         + '{' +
                         "address=" + address() +
                         ", hasMemory=" + hasMemory() +
                         '}';
             }
             else {
-                return getClass().getName()
+                return "MemoryHandle"
                         + '{' +
                         "address=" + address() +
                         ", size=" + Long.toUnsignedString(size) +
@@ -367,7 +494,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         else {
             long size = size();
             if (size == -1) {
-                return getClass().getName()
+                return "MemoryHandle"
                         + '{' +
                         "array=" + array() +
                         ", arrayOffset=" + arrayOffset() +
@@ -376,7 +503,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
                         '}';
             }
             else {
-                return getClass().getName()
+                return "MemoryHandle"
                         + '{' +
                         "array=" + array() +
                         ", arrayOffset=" + arrayOffset() +
@@ -545,6 +672,18 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     }
 
     /**
+     * Reads a native memory address value at the given offset.
+     * <p>A native address can be either 32 or 64 bits in size, depending
+     * on the cpu architecture.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
+     * @return the native address value contained in the memory at the offset
+     */
+    public long getSize(long offset) {
+        return Int64Adapter.SIZE.get(this, offset);
+    }
+
+    /**
      * Reads a {@code float} (32 bit) value at the given offset.
      *
      * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be read.
@@ -709,6 +848,18 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      */
     public void setAddress(long offset, long value) {
         Int64Adapter.ADDRESS.set(this, offset, value);
+    }
+
+    /**
+     * Writes a native memory address value at the given offset.
+     * <p>A native address can be either 32 or 64 bits in size, depending
+     * on the cpu architecture.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the value will be written.
+     * @param value The native address value to be written.
+     */
+    public void setSize(long offset, long value) {
+        Int64Adapter.SIZE.set(this, offset, value);
     }
 
     /**
@@ -1653,6 +1804,28 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
      *
      * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
      * @param array The array into which values are to be stored.
+     * @param index the start index in the {@code array} array to begin storing the values.
+     * @param length the number of values to be read.
+     */
+    public void getSizeArray(long offset, long[] array, int index, int length) {
+        if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
+        else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
+        int size = Math.addExact(index, length);
+        if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
+        checkBounds(offset, (long) length * Foreign.addressSize());
+        for (int i = 0; i < length; i ++) {
+            array[index + i] = Int64Adapter.SIZE.get(this, offset + (long) i * Foreign.addressSize());
+        }
+    }
+
+    /**
+     * Bulk get method for multiple {@code address} values.
+     *
+     * <p>This method reads multiple {@code address} values from consecutive addresses,
+     * beginning at the given offset, and stores them in an array.
+     *
+     * @param offset The offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be read.
+     * @param array The array into which values are to be stored.
      */
     public void getAddressArray(long offset, long[] array) {
         getAddressArray(offset, array, 0, array.length);
@@ -1677,6 +1850,28 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
         checkBounds(offset, (long) length * Foreign.addressSize());
         for (int i = 0; i < length; i ++) {
             Int64Adapter.ADDRESS.set(this, offset + (long) i * Foreign.addressSize(), array[index + i]);
+        }
+    }
+
+    /**
+     * Bulk set method for multiple {@code address} values.
+     *
+     * <p>This method writes multiple {@code address} values to consecutive addresses,
+     * beginning at the given offset, from an array.
+     *
+     * @param offset the offset from the start of the memory this {@code MemoryHandle} represents at which the first value will be written.
+     * @param array the array to get values from.
+     * @param index the start index in the {@code array} array to begin reading values.
+     * @param length the number of values to be written.
+     */
+    public void setSizeArray(long offset, long[] array, int index, int length) {
+        if (index < 0) throw new ArrayIndexOutOfBoundsException(index);
+        else if (length < 0) throw new ArrayIndexOutOfBoundsException(length);
+        int size = Math.addExact(index, length);
+        if (size > array.length) throw new ArrayIndexOutOfBoundsException(size);
+        checkBounds(offset, (long) length * Foreign.addressSize());
+        for (int i = 0; i < length; i ++) {
+            Int64Adapter.SIZE.set(this, offset + (long) i * Foreign.addressSize(), array[index + i]);
         }
     }
 
@@ -2129,7 +2324,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
                 for (long i = 0; i < length; i ++) {
                     byte oa = getInt8(i);
                     byte ob = other.getInt8(i);
-                    if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                    if (oa != ob) return Util.compareUnsigned(oa, ob);
                 }
             }
             else {
@@ -2137,15 +2332,15 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
                 for (long i = 0; i < Long.MAX_VALUE; i ++) {
                     oa = getInt8(i);
                     ob = other.getInt8(i);
-                    if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                    if (oa != ob) return Util.compareUnsigned(oa, ob);
                 }
                 oa = getInt8(Long.MAX_VALUE);
                 ob = other.getInt8(Long.MAX_VALUE);
-                if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                if (oa != ob) return Util.compareUnsigned(oa, ob);
                 for (long i = Long.MIN_VALUE; i < length; i ++) {
                     oa = getInt8(i);
                     ob = other.getInt8(i);
-                    if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                    if (oa != ob) return Util.compareUnsigned(oa, ob);
                 }
             }
             return Long.compareUnsigned(size, otherSize);
@@ -2160,7 +2355,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             for (long i = 0; i < size; i ++) {
                 byte oa = getInt8(offset + i);
                 byte ob = other.getInt8(offset + i);
-                if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                if (oa != ob) return Util.compareUnsigned(oa, ob);
             }
             return 0;
         }
@@ -2169,15 +2364,15 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             for (long i = 0; i < Long.MAX_VALUE; i ++) {
                 oa = getInt8(offset + i);
                 ob = other.getInt8(offset + i);
-                if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                if (oa != ob) return Util.compareUnsigned(oa, ob);
             }
             oa = getInt8(offset + Long.MAX_VALUE);
             ob = other.getInt8(offset + Long.MAX_VALUE);
-            if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+            if (oa != ob) return Util.compareUnsigned(oa, ob);
             for (long i = Long.MIN_VALUE; i < size; i ++) {
                 oa = getInt8(offset + i);
                 ob = other.getInt8(offset + i);
-                if (oa != ob) return Byte.toUnsignedInt(oa) - Byte.toUnsignedInt(ob);
+                if (oa != ob) return Util.compareUnsigned(oa, ob);
             }
             return 0;
         }
@@ -2186,19 +2381,19 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
     public int compareTo(MemoryHandle other, long offset, long size) {
         if (size == 0) return 0;
         else if (isNil() && other.isNil()) return 0;
-        else if (isDirect() && other.isDirect()) return Allocator.compare(address(), other.address(), size);
+        else if (isDirect() && other.isDirect()) return Memory.compare(address(), other.address(), size);
         else return compare(other, offset, size);
     }
 
     @Override
     public abstract void close();
 
-    private abstract static class Int64Adapter {
+    private interface Int64Adapter {
 
-        public abstract long get(MemoryHandle memoryHandle, long offset);
-        public abstract void set(MemoryHandle memoryHandle, long offset, long value);
+        long get(MemoryHandle memoryHandle, long offset);
+        void set(MemoryHandle memoryHandle, long offset, long value);
 
-        public static final Int64Adapter SIZE64 = new Int64Adapter() {
+        Int64Adapter SIZE64 = new Int64Adapter() {
             @Override
             public long get(MemoryHandle memoryHandle, long offset) {
                 return memoryHandle.getInt64(offset);
@@ -2209,7 +2404,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             }
         };
 
-        public static final Int64Adapter SIZE32 = new Int64Adapter() {
+        Int64Adapter SIZE32 = new Int64Adapter() {
             @Override
             public long get(MemoryHandle memoryHandle, long offset) {
                 return (long) memoryHandle.getInt32(offset) & 0xFFFFFFFFL;
@@ -2221,7 +2416,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             }
         };
 
-        public static final Int64Adapter SIZE16 = new Int64Adapter() {
+        Int64Adapter SIZE16 = new Int64Adapter() {
             @Override
             public long get(MemoryHandle memoryHandle, long offset) {
                 return (long) memoryHandle.getInt16(offset) & 0xFFFFL;
@@ -2233,19 +2428,20 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             }
         };
 
-        public static final Int64Adapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
-        public static final Int64Adapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
-        public static final Int64Adapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
-        public static final Int64Adapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter SHORT = Foreign.shortSize() == 8 ? SIZE64 : SIZE16;
+        Int64Adapter INT = Foreign.intSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter LONG = Foreign.longSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter ADDRESS = Foreign.addressSize() == 8 ? SIZE64 : SIZE32;
+        Int64Adapter SIZE = ADDRESS;
 
     }
 
-    private abstract static class Int32Adapter {
+    private interface Int32Adapter {
 
-        public abstract int get(MemoryHandle memoryHandle, long offset);
-        public abstract void set(MemoryHandle memoryHandle, long offset, int value);
+        int get(MemoryHandle memoryHandle, long offset);
+        void set(MemoryHandle memoryHandle, long offset, int value);
 
-        public static final Int32Adapter SIZE32 = new Int32Adapter() {
+        Int32Adapter SIZE32 = new Int32Adapter() {
             @Override
             public int get(MemoryHandle memoryHandle, long offset) {
                 return memoryHandle.getInt32(offset);
@@ -2256,7 +2452,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             }
         };
 
-        public static final Int32Adapter SIZE16 = new Int32Adapter() {
+        Int32Adapter SIZE16 = new Int32Adapter() {
             @Override
             public int get(MemoryHandle memoryHandle, long offset) {
                 return (int) memoryHandle.getInt16(offset) & 0xFFFF;
@@ -2268,7 +2464,7 @@ public abstract class MemoryHandle implements Comparable<MemoryHandle>, AutoClos
             }
         };
 
-        public static final Int32Adapter WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
+        Int32Adapter WCHAR = Foreign.wcharSize() == 4 ? SIZE32 : SIZE16;
 
     }
 

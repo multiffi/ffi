@@ -17,7 +17,7 @@ public final class JNAAccessor {
     }
 
     private JNAAccessor() {
-        throw new AssertionError("No io.github.multiffi.ffi.JNAAccessor instances for you!");
+        throw new AssertionError("No com.sun.jna.JNAAccessor instances for you!");
     }
 
     private static NativeAccessor nativeAccessor;

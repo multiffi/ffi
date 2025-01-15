@@ -2,6 +2,9 @@ package multiffi.ffi;
 
 public abstract class ForeignType {
 
+    ForeignType() {
+    }
+
     public static final ForeignType VOID = null;
 
     public abstract long size();
@@ -10,6 +13,7 @@ public abstract class ForeignType {
     public abstract boolean isStruct();
     public abstract boolean isUnion();
     public abstract boolean isArray();
+    public abstract boolean isNumeric();
     public abstract boolean isScalar();
     public boolean isCompound() {
         return !isScalar();

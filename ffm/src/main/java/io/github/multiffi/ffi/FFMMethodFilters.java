@@ -28,7 +28,7 @@ public final class FFMMethodFilters {
                 case float[] floatArray -> MemorySegment.ofArray(floatArray);
                 case double[] doubleArray -> MemorySegment.ofArray(doubleArray);
                 case char[] charArray -> MemorySegment.ofArray(charArray);
-                case null, default -> throw new IllegalStateException("Unexpected exception");
+                case null, default -> throw new IllegalArgumentException("Unsupported array");
             };
             return handle.arrayOffset() == 0L ? segment : segment.asSlice(handle.arrayOffset());
         }
@@ -46,7 +46,7 @@ public final class FFMMethodFilters {
                 case float[] floatArray -> MemoryHandle.wrap(floatArray);
                 case double[] doubleArray -> MemoryHandle.wrap(doubleArray);
                 case char[] charArray -> MemoryHandle.wrap(charArray);
-                case null, default -> throw new IllegalStateException("Unexpected exception");
+                case null, default -> throw new IllegalArgumentException("Unsupported array");
             };
         }
     }
@@ -66,77 +66,77 @@ public final class FFMMethodFilters {
         return (int) value & 0xFFFF;
     }
     public static short shortToInt16(long value) {
-        if (FFMUtil.ABIHolder.SHORT.byteSize() == 2 && (value > 65535 || value < 0))
+        if (FFMUtil.SHORT_SIZE == 2 && (value > 65535 || value < 0))
             throw new ArithmeticException("integer overflow");
         else return (short) value;
     }
     public static int intToInt32(long value) {
-        if (FFMUtil.ABIHolder.INT.byteSize() == 4 && (((value >> 32) + 1) & ~1) != 0)
+        if (FFMUtil.INT_SIZE == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
     public static int longToInt32(long value) {
-        if (FFMUtil.ABIHolder.LONG.byteSize() == 4 && (((value >> 32) + 1) & ~1) != 0)
+        if (FFMUtil.LONG_SIZE == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
     public static int addressToInt32(long value) {
-        if (FFMUtil.ABIHolder.LONG.byteSize() == 4 && (((value >> 32) + 1) & ~1) != 0)
+        if (FFMUtil.LONG_SIZE == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
     public static char wcharToUTF16(int value) {
-        if (FFMUtil.ABIHolder.WCHAR_T.byteSize() == 2 && (value > 65535 || value < 0))
+        if (FFMUtil.WCHAR_SIZE == 2 && (value > 65535 || value < 0))
             throw new ArithmeticException("integer overflow");
         else return (char) value;
     }
     public static MethodHandle filterShortArgument(MethodHandle target, int pos, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.SHORT.byteSize() == 2) return MethodHandles.filterArguments(target, pos,
+        if (target != null && FFMUtil.SHORT_SIZE == 2) return MethodHandles.filterArguments(target, pos,
                 upcall ? INT16_TO_INT64 : SHORT_TO_INT16);
         else return target;
     }
     public static MethodHandle filterIntArgument(MethodHandle target, int pos, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.INT.byteSize() == 4) return MethodHandles.filterArguments(target, pos,
+        if (target != null && FFMUtil.INT_SIZE == 4) return MethodHandles.filterArguments(target, pos,
                 upcall ? INT32_TO_INT64 : INT_TO_INT32);
         else return target;
     }
     public static MethodHandle filterLongArgument(MethodHandle target, int pos, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.LONG.byteSize() == 4) return MethodHandles.filterArguments(target, pos,
+        if (target != null && FFMUtil.LONG_SIZE == 4) return MethodHandles.filterArguments(target, pos,
                 upcall ? INT32_TO_INT64 : LONG_TO_INT32);
         else return target;
     }
     public static MethodHandle filterAddressArgument(MethodHandle target, int pos, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.SIZE_T.byteSize() == 4) return MethodHandles.filterArguments(target, pos,
+        if (target != null && FFMUtil.ADDRESS_SIZE == 4) return MethodHandles.filterArguments(target, pos,
                 upcall ? INT32_TO_INT64 : ADDRESS_TO_INT32);
         else return target;
     }
     public static MethodHandle filterWCharArgument(MethodHandle target, int pos, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.WCHAR_T.byteSize() == 2) return MethodHandles.filterArguments(target, pos,
+        if (target != null && FFMUtil.WCHAR_SIZE == 2) return MethodHandles.filterArguments(target, pos,
                 upcall ? UTF16_TO_INT32 : WCHAR_TO_UTF16);
         else return target;
     }
     public static MethodHandle filterShortReturnValue(MethodHandle target, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.SHORT.byteSize() == 2) return MethodHandles.filterReturnValue(target,
+        if (target != null && FFMUtil.SHORT_SIZE == 2) return MethodHandles.filterReturnValue(target,
                 upcall ? SHORT_TO_INT16 : INT16_TO_INT64);
         else return target;
     }
     public static MethodHandle filterIntReturnValue(MethodHandle target, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.INT.byteSize() == 4) return MethodHandles.filterReturnValue(target,
+        if (target != null && FFMUtil.INT_SIZE == 4) return MethodHandles.filterReturnValue(target,
                 upcall ? INT_TO_INT32 : INT32_TO_INT64);
         else return target;
     }
     public static MethodHandle filterLongReturnValue(MethodHandle target, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.LONG.byteSize() == 4) return MethodHandles.filterReturnValue(target,
+        if (target != null && FFMUtil.LONG_SIZE == 4) return MethodHandles.filterReturnValue(target,
                 upcall ? LONG_TO_INT32 : INT32_TO_INT64);
         else return target;
     }
     public static MethodHandle filterAddressReturnValue(MethodHandle target, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.SIZE_T.byteSize() == 4) return MethodHandles.filterReturnValue(target,
+        if (target != null && FFMUtil.ADDRESS_SIZE == 4) return MethodHandles.filterReturnValue(target,
                 upcall ? ADDRESS_TO_INT32 : INT32_TO_INT64);
         else return target;
     }
     public static MethodHandle filterWCharReturnValue(MethodHandle target, boolean upcall) {
-        if (target != null && FFMUtil.ABIHolder.WCHAR_T.byteSize() == 2) return MethodHandles.filterReturnValue(target,
+        if (target != null && FFMUtil.WCHAR_SIZE == 2) return MethodHandles.filterReturnValue(target,
                 upcall ? WCHAR_TO_UTF16 : UTF16_TO_INT32);
         else return target;
     }
@@ -180,7 +180,7 @@ public final class FFMMethodFilters {
             WCHAR_TO_UTF16 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "wcharToUTF16",
                     MethodType.methodType(char.class, int.class));
         } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw new IllegalStateException("Unexpected exception");
+            throw new IllegalStateException("Unexpected exception", e);
         }
     }
 

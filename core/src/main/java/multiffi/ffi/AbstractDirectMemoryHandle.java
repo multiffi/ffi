@@ -1,5 +1,7 @@
 package multiffi.ffi;
 
+import io.github.multiffi.ffi.Util;
+
 public abstract class AbstractDirectMemoryHandle extends MemoryHandle {
 
     @Override
@@ -35,105 +37,105 @@ public abstract class AbstractDirectMemoryHandle extends MemoryHandle {
     @Override
     public boolean getBoolean(long offset) {
         checkBounds(offset, 1);
-        return Allocator.getBoolean(address() + offset);
+        return Memory.getBoolean(address() + offset);
     }
 
     @Override
     public byte getInt8(long offset) {
         checkBounds(offset, 1);
-        return Allocator.getInt8(address() + offset);
+        return Memory.getInt8(address() + offset);
     }
 
     @Override
     public short getInt16(long offset) {
         checkBounds(offset, 2);
-        return Allocator.getInt16(address() + offset);
+        return Memory.getInt16(address() + offset);
     }
 
     @Override
     public char getUTF16(long offset) {
         checkBounds(offset, 2);
-        return Allocator.getUTF16(address() + offset);
+        return Memory.getUTF16(address() + offset);
     }
 
     @Override
     public int getInt32(long offset) {
         checkBounds(offset, 4);
-        return Allocator.getInt32(address() + offset);
+        return Memory.getInt32(address() + offset);
     }
 
     @Override
     public long getInt64(long offset) {
         checkBounds(offset, 8);
-        return Allocator.getInt64(address() + offset);
+        return Memory.getInt64(address() + offset);
     }
 
     @Override
     public float getFloat(long offset) {
         checkBounds(offset, 4);
-        return Allocator.getFloat(address() + offset);
+        return Memory.getFloat(address() + offset);
     }
 
     @Override
     public double getDouble(long offset) {
         checkBounds(offset, 8);
-        return Allocator.getDouble(address() + offset);
+        return Memory.getDouble(address() + offset);
     }
 
     @Override
     public void setBoolean(long offset, boolean value) {
         checkBounds(offset, 1);
-        Allocator.setBoolean(address() + offset, value);
+        Memory.setBoolean(address() + offset, value);
     }
 
     @Override
     public void setInt8(long offset, byte value) {
         checkBounds(offset, 1);
-        Allocator.setInt8(address() + offset, value);
+        Memory.setInt8(address() + offset, value);
     }
 
     @Override
     public void setInt16(long offset, short value) {
         checkBounds(offset, 2);
-        Allocator.setInt16(address() + offset, value);
+        Memory.setInt16(address() + offset, value);
     }
 
     @Override
     public void setUTF16(long offset, char value) {
         checkBounds(offset, 2);
-        Allocator.setUTF16(address() + offset, value);
+        Memory.setUTF16(address() + offset, value);
     }
 
     @Override
     public void setInt32(long offset, int value) {
         checkBounds(offset, 4);
-        Allocator.setInt32(address() + offset, value);
+        Memory.setInt32(address() + offset, value);
     }
 
     @Override
     public void setInt64(long offset, long value) {
         checkBounds(offset, 8);
-        Allocator.setInt64(address() + offset, value);
+        Memory.setInt64(address() + offset, value);
     }
 
     @Override
     public void setFloat(long offset, float value) {
         checkBounds(offset, 4);
-        Allocator.setFloat(address() + offset, value);
+        Memory.setFloat(address() + offset, value);
     }
 
     @Override
     public void setDouble(long offset, double value) {
         checkBounds(offset, 8);
-        Allocator.setDouble(address() + offset, value);
+        Memory.setDouble(address() + offset, value);
     }
 
     @Override
     public void transferTo(long srcOffset, MemoryHandle destMemoryHandle, long destOffset, long size) {
         checkBounds(srcOffset, size);
         destMemoryHandle.checkBounds(destOffset, size);
-        if (destMemoryHandle.isDirect()) Allocator.copy(destMemoryHandle.address() + destOffset, address() + srcOffset, size);
-        else Allocator.copy(destMemoryHandle.array(), destOffset, address() + srcOffset, size);
+        if (destMemoryHandle.isDirect()) Memory.copy(destMemoryHandle.address() + destOffset, address() + srcOffset, size);
+        else Memory.copy(destMemoryHandle.array(), destOffset, address() + srcOffset, size);
     }
 
     @Override
@@ -145,8 +147,8 @@ public abstract class AbstractDirectMemoryHandle extends MemoryHandle {
     public void transferFrom(long destOffset, MemoryHandle srcMemoryHandle, long srcOffset, long size) {
         checkBounds(destOffset, size);
         srcMemoryHandle.checkBounds(srcOffset, size);
-        if (srcMemoryHandle.isDirect()) Allocator.copy(address() + destOffset, srcMemoryHandle.address() + srcOffset, size);
-        else Allocator.copy(address() + destOffset, srcMemoryHandle.array(), srcOffset, size);
+        if (srcMemoryHandle.isDirect()) Memory.copy(address() + destOffset, srcMemoryHandle.address() + srcOffset, size);
+        else Memory.copy(address() + destOffset, srcMemoryHandle.array(), srcOffset, size);
     }
 
     @Override
@@ -178,54 +180,54 @@ public abstract class AbstractDirectMemoryHandle extends MemoryHandle {
 
     @Override
     public void fill(long offset, byte value, long size) {
-        Allocator.fill(address() + offset, value, size);
+        Memory.fill(address() + offset, value, size);
     }
 
     @Override
     public void fill(long offset, int value, long size) {
-        Allocator.fill(address() + offset, value, size);
+        Memory.fill(address() + offset, value, size);
     }
 
     @Override
     public long indexOf(long offset, byte value) {
         checkBounds(offset);
         long index = address() + offset;
-        return Allocator.search(index, value) - address();
+        return Memory.search(index, value) - address();
     }
 
     @Override
     public long indexOf(long offset, int value) {
         checkBounds(offset);
         long index = address() + offset;
-        return Allocator.search(index, value) - address();
+        return Memory.search(index, value) - address();
     }
 
     @Override
     public long indexOf(long offset, byte value, long maxLength) {
         checkBounds(offset);
         long index = address() + offset;
-        return Allocator.search(index, value, maxLength) - address();
+        return Memory.search(index, value, maxLength) - address();
     }
 
     @Override
     public long indexOf(long offset, int value, long maxLength) {
         checkBounds(offset);
         long index = address() + offset;
-        return Allocator.search(index, value, maxLength) - address();
+        return Memory.search(index, value, maxLength) - address();
     }
 
     @Override
     public long indexOf(long offset, Object valueArray, int valueArrayOffset, int valueSize) {
         checkBounds(offset, valueSize);
         long index = address() + offset;
-        return Allocator.search(array(), index, valueArray, valueArrayOffset, valueSize, size()) - address();
+        return Memory.search(array(), index, valueArray, valueArrayOffset, valueSize, size()) - address();
     }
 
     @Override
     public long indexOf(long offset, Object valueArray, int valueArrayOffset, int valueSize, long maxLength) {
         checkBounds(offset, valueSize);
         long index = address() + offset;
-        return Allocator.search(array(), index, valueArray, valueArrayOffset, valueSize, maxLength) - address();
+        return Memory.search(array(), index, valueArray, valueArrayOffset, valueSize, maxLength) - address();
     }
 
     @Override

@@ -3,7 +3,8 @@ package multiffi.ffi;
 import multiffi.ffi.spi.ForeignProvider;
 
 import java.io.File;
-import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
@@ -45,6 +46,10 @@ public final class Foreign {
 
     public static long pageSize() {
         return IMPLEMENTATION.pageSize();
+    }
+
+    public static long alignmentSize() {
+        return IMPLEMENTATION.alignmentSize();
     }
 
     public static Charset ansiCharset() {
@@ -119,15 +124,15 @@ public final class Foreign {
         return IMPLEMENTATION.endianness();
     }
 
-    public static void loadLibrary(String libraryName) throws IOException {
+    public static void loadLibrary(String libraryName) throws UnsatisfiedLinkError {
         IMPLEMENTATION.loadLibrary(libraryName);
     }
 
-    public static void loadLibrary(File libraryFile) throws IOException {
+    public static void loadLibrary(File libraryFile) throws UnsatisfiedLinkError {
         IMPLEMENTATION.loadLibrary(libraryFile);
     }
 
-    public static long getSymbolAddress(String symbolName) {
+    public static long getSymbolAddress(String symbolName) throws UnsatisfiedLinkError {
         return IMPLEMENTATION.getSymbolAddress(symbolName);
     }
 
@@ -151,12 +156,12 @@ public final class Foreign {
         return IMPLEMENTATION.getLastErrorString();
     }
 
-    public static FunctionHandle downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallHandle(address, firstVarArg, returnType, parameterTypes, options);
+    public static FunctionHandle downcallHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.downcallHandle(address, firstVarArgIndex, returnType, parameterTypes, options);
     }
 
-    public static FunctionHandle downcallHandle(long address, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallHandle(address, firstVarArg, returnType, parameterTypes);
+    public static FunctionHandle downcallHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.downcallHandle(address, firstVarArgIndex, returnType, parameterTypes);
     }
 
     public static FunctionHandle downcallHandle(long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
@@ -167,85 +172,475 @@ public final class Foreign {
         return IMPLEMENTATION.downcallHandle(address, returnType, parameterTypes);
     }
 
-    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
-                                      long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVararg, returnType, parameterTypes, options);
+    // sun.reflect.Reflection
+    private static final Method getCallerClassReflectionMethod;
+    // java.lang.StackWalker
+    private static final Method getInstanceStackWalkerMethod;
+    private static final Method getCallerClassStackWalkerMethod;
+    private static final Object retainClassReferenceOption;
+    // dalvik.system.VMStack
+    private static final Method getCallingClassLoaderMethod;
+    static {
+        Method method;
+        if ("dalvik".equalsIgnoreCase(System.getProperty("java.vm.name"))) {
+            try {
+                Class<?> VMStackClass = Class.forName("dalvik.system.VMStack");
+                method = VMStackClass.getDeclaredMethod("getCallingClassLoader");
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                method = null;
+            }
+            getCallingClassLoaderMethod = method;
+        }
+        else getCallingClassLoaderMethod = null;
+        if (getCallingClassLoaderMethod == null) {
+            try {
+                Class<?> reflectionClass = Class.forName("sun.reflect.Reflection");
+                method = reflectionClass.getDeclaredMethod("getCallerClass");
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                method = null;
+            }
+            getCallerClassReflectionMethod = method;
+            if (getCallerClassReflectionMethod == null) {
+                Class<?> stackWalkerClass;
+                Class<?> stackWalkerOptionClass;
+                try {
+                    stackWalkerClass = Class.forName("java.lang.StackWalker");
+                    stackWalkerOptionClass = Class.forName("java.lang.StackWalker$Option");
+
+                } catch (ClassNotFoundException e) {
+                    stackWalkerClass = null;
+                    stackWalkerOptionClass = null;
+                }
+                if (stackWalkerClass != null) {
+                    Method _getInstanceStackWalkerMethod;
+                    Method _getCallerClassStackWalkerMethod;
+                    Object _retainClassReferenceOption;
+                    try {
+                        _getInstanceStackWalkerMethod = stackWalkerClass.getDeclaredMethod("getInstance", stackWalkerOptionClass);
+                        _getCallerClassStackWalkerMethod = stackWalkerClass.getDeclaredMethod("getCallerClass");
+                        Field field = stackWalkerOptionClass.getDeclaredField("RETAIN_CLASS_REFERENCE");
+                        _retainClassReferenceOption = field.get(null);
+
+                    } catch (NoSuchMethodException | NoSuchFieldException | IllegalAccessException e) {
+                        _getInstanceStackWalkerMethod = null;
+                        _getCallerClassStackWalkerMethod = null;
+                        _retainClassReferenceOption = null;
+                    }
+                    getInstanceStackWalkerMethod = _getInstanceStackWalkerMethod;
+                    getCallerClassStackWalkerMethod = _getCallerClassStackWalkerMethod;
+                    retainClassReferenceOption = _retainClassReferenceOption;
+                }
+                else {
+                    getInstanceStackWalkerMethod = null;
+                    getCallerClassStackWalkerMethod = null;
+                    retainClassReferenceOption = null;
+                }
+            }
+            else {
+                getInstanceStackWalkerMethod = null;
+                getCallerClassStackWalkerMethod = null;
+                retainClassReferenceOption = null;
+            }
+        }
+        else {
+            getCallerClassReflectionMethod = null;
+            getInstanceStackWalkerMethod = null;
+            getCallerClassStackWalkerMethod = null;
+            retainClassReferenceOption = null;
+        }
     }
 
-    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVararg, returnType, parameterTypes);
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
+                                      long address, int firstVarArgIndexIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVarArgIndexIndex, returnType, parameterTypes, options);
+    }
+
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, int firstVarArgIndexIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVarArgIndexIndex, returnType, parameterTypes);
     }
 
     public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz,
                                       long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
         return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, returnType, parameterTypes, options);
     }
 
     public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
         return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, returnType, parameterTypes);
     }
 
-    public static <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallProxy(clazz, address, firstVararg, returnType, parameterTypes, options);
+    public static <T> T downcallProxy(Class<T> clazz, long address, int firstVarArgIndexIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVarArgIndexIndex, returnType, parameterTypes, options);
     }
 
-    public static <T> T downcallProxy(Class<T> clazz, long address, int firstVararg, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallProxy(clazz, address, firstVararg, returnType, parameterTypes);
+    public static <T> T downcallProxy(Class<T> clazz, long address, int firstVarArgIndexIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, firstVarArgIndexIndex, returnType, parameterTypes);
     }
 
     public static <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.downcallProxy(clazz, address, returnType, parameterTypes, options);
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, returnType, parameterTypes, options);
     }
 
     public static <T> T downcallProxy(Class<T> clazz, long address, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.downcallProxy(clazz, address, returnType, parameterTypes);
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, address, returnType, parameterTypes);
     }
 
-    public static Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-        return IMPLEMENTATION.downcallProxy(classLoader, classes, callOptionVisitor);
+    public static Object downcallProxy(ClassLoader classLoader, Class<?>[] classes, FunctionOptionVisitor functionOptionVisitor) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, classes, functionOptionVisitor);
     }
 
-    public static Object downcallProxy(Class<?>[] classes, CallOptionVisitor callOptionVisitor) {
-        return IMPLEMENTATION.downcallProxy(classes, callOptionVisitor);
+    public static Object downcallProxy(Class<?>[] classes, FunctionOptionVisitor functionOptionVisitor) {
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, classes, functionOptionVisitor);
     }
 
-    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, CallOptionVisitor callOptionVisitor) {
-        return IMPLEMENTATION.downcallProxy(classLoader, clazz, callOptionVisitor);
+    public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz, FunctionOptionVisitor functionOptionVisitor) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, functionOptionVisitor);
     }
 
-    public static <T> T downcallProxy(Class<T> clazz, CallOptionVisitor callOptionVisitor) {
-        return IMPLEMENTATION.downcallProxy(clazz, callOptionVisitor);
+    public static <T> T downcallProxy(Class<T> clazz, FunctionOptionVisitor functionOptionVisitor) {
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz, functionOptionVisitor);
     }
 
     public static Object downcallProxy(ClassLoader classLoader, Class<?>[] classes) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
         return IMPLEMENTATION.downcallProxy(classLoader, classes);
     }
 
-    public static Object downcallProxy(Class<?>[] classes) {
-        return IMPLEMENTATION.downcallProxy(classes);
+    public static Object downcallProxy(Class<?>... classes) {
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, classes);
     }
 
     public static <T> T downcallProxy(ClassLoader classLoader, Class<T> clazz) {
+        if (classLoader == null) {
+            try {
+                if (getCallingClassLoaderMethod != null) {
+                    classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                    if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+                }
+                else {
+                    Class<?> caller;
+                    if (getCallerClassReflectionMethod != null)
+                        caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                    else if (getInstanceStackWalkerMethod != null) {
+                        Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                        caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                    }
+                    else caller = null;
+                    classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+                }
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                classLoader = ClassLoader.getSystemClassLoader();
+            }
+        }
         return IMPLEMENTATION.downcallProxy(classLoader, clazz);
     }
 
     public static <T> T downcallProxy(Class<T> clazz) {
-        return IMPLEMENTATION.downcallProxy(clazz);
+        ClassLoader classLoader;
+        try {
+            if (getCallingClassLoaderMethod != null) {
+                classLoader = (ClassLoader) getCallingClassLoaderMethod.invoke(null);
+                if (classLoader == null) classLoader = ClassLoader.getSystemClassLoader();
+            } else {
+                Class<?> caller;
+                if (getCallerClassReflectionMethod != null)
+                    caller = (Class<?>) getCallerClassReflectionMethod.invoke(null);
+                else if (getInstanceStackWalkerMethod != null) {
+                    Object stackWalker = getInstanceStackWalkerMethod.invoke(null, retainClassReferenceOption);
+                    caller = (Class<?>) getCallerClassStackWalkerMethod.invoke(stackWalker);
+                } else caller = null;
+                classLoader = caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader();
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return IMPLEMENTATION.downcallProxy(classLoader, clazz);
     }
 
-    public static long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
-        return IMPLEMENTATION.upcallStub(object, method, firstVarArg, returnType, parameterTypes, options);
+    public static MemoryHandle upcallStub(Object object, Method method, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+        return IMPLEMENTATION.upcallStub(object, method, firstVarArgIndex, returnType, parameterTypes, options);
     }
 
-    public static long upcallStub(Object object, Method method, int firstVarArg, ForeignType returnType, ForeignType... parameterTypes) {
-        return IMPLEMENTATION.upcallStub(object, method, firstVarArg, returnType, parameterTypes);
+    public static MemoryHandle upcallStub(Object object, Method method, int firstVarArgIndex, ForeignType returnType, ForeignType... parameterTypes) {
+        return IMPLEMENTATION.upcallStub(object, method, firstVarArgIndex, returnType, parameterTypes);
     }
 
-    public static long upcallStub(Object object, Method method, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public static MemoryHandle upcallStub(Object object, Method method, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         return IMPLEMENTATION.upcallStub(object, method, returnType, parameterTypes, options);
     }
 
-    public static long upcallStub(Object object, Method method, ForeignType returnType, ForeignType... parameterTypes) {
+    public static MemoryHandle upcallStub(Object object, Method method, ForeignType returnType, ForeignType... parameterTypes) {
         return IMPLEMENTATION.upcallStub(object, method, returnType, parameterTypes);
     }
 

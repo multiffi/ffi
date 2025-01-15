@@ -11,7 +11,7 @@ public class DirectSliceMemoryHandle extends AbstractDirectMemoryHandle {
     private final long offset;
     private final long size;
 
-    protected DirectSliceMemoryHandle(DirectMemoryHandle attachment, long offset, long size) {
+    public DirectSliceMemoryHandle(DirectMemoryHandle attachment, long offset, long size) {
         this.attachmentRef.set(attachment);
         attachment.checkBounds(offset);
         this.offset = offset;

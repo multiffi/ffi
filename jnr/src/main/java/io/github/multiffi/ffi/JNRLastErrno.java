@@ -24,7 +24,7 @@ public final class JNRLastErrno {
     }
 
     public static void dump() {
-        ERRNO_THREAD_LOCAL.set(LastError.getLastError(JNRUtil.UnsafeHolder.RUNTIME));
+        ERRNO_THREAD_LOCAL.set(LastError.getLastError(JNRUtil.RUNTIME));
     }
 
 }

@@ -24,98 +24,99 @@ public class JNAFunctionHandle extends FunctionHandle {
     private final boolean saveErrno;
     private final List<ForeignType> parameterTypes;
     private final ForeignType returnType;
-    private final InvokeFunction invokeFunction;
+    private final InvocationDelegate<Object[], Object> delegate;
 
-    private interface InvokeFunction {
-        Object invoke(Object[] args);
-    }
-
-    private static final Object[] EMPTY_ARGUMENTS = new Object[0];
-    public JNAFunctionHandle(long address, int firstVararg, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
+    public JNAFunctionHandle(long address, int firstVarArgIndex, ForeignType returnType, ForeignType[] parameterTypes, CallOption... options) {
         boolean dyncall = false;
         boolean stdcall = false;
         boolean saveErrno = false;
-        for (CallOption option : options) {
-            if (option.equals(StandardCallOption.DYNCALL)) dyncall = true;
-            else if (option.equals(StandardCallOption.SAVE_ERRNO)) saveErrno = true;
-            else if (option.equals(StandardCallOption.STDCALL)) stdcall = true;
-            else if (!option.equals(StandardCallOption.TRIVIAL) && !option.equals(StandardCallOption.CRITICAL))
-                throw new IllegalArgumentException(option + " not supported");
+        if (options != null) {
+            for (CallOption option : options) {
+                if (option.equals(StandardCallOption.DYNCALL)) dyncall = true;
+                else if (option.equals(StandardCallOption.SAVE_ERRNO)) saveErrno = true;
+                else if (option.equals(StandardCallOption.STDCALL)) stdcall = true;
+                else if (!option.equals(StandardCallOption.TRIVIAL) && !option.equals(StandardCallOption.CRITICAL))
+                    throw new IllegalArgumentException(option + " not supported");
+            }
+            if (!JNAUtil.STDCALL_SUPPORTED) stdcall = false;
         }
-        if (!JNAUtil.STDCALL_AVAILABLE) stdcall = false;
         this.dyncall = dyncall;
         this.saveErrno = saveErrno;
+        int parameterCount = parameterTypes == null || parameterTypes.length == 1 && parameterTypes[0] == null ? 0 : parameterTypes.length;
         boolean addReturnMemoryParameter = returnType != null && returnType.isCompound();
-        List<ForeignType> parameterTypeList = new ArrayList<>(parameterTypes.length + (addReturnMemoryParameter ? 1 : 0));
-        parameterTypeList.addAll(Arrays.asList(parameterTypes));
-        if (addReturnMemoryParameter) parameterTypeList.add(0, returnType);
         this.returnType = returnType;
-        this.parameterTypes = Collections.unmodifiableList(parameterTypeList);
-        this.firstVarArgIndex = firstVararg >= 0 ? firstVararg : (dyncall ? parameterTypes.length : -1);
+        if (parameterCount == 0) this.parameterTypes = addReturnMemoryParameter ? Collections.singletonList(returnType) : Collections.emptyList();
+        else {
+            List<ForeignType> list = new ArrayList<>(parameterCount + (addReturnMemoryParameter ? 1 : 0));
+            if (addReturnMemoryParameter) list.add(returnType);
+            list.addAll(Arrays.asList(parameterTypes));
+            this.parameterTypes = Collections.unmodifiableList(list);
+        }
+        this.firstVarArgIndex = firstVarArgIndex >= 0 ? Math.min(firstVarArgIndex, parameterCount) : (dyncall ? parameterCount : -1);
         this.function = Function.getFunction(new Pointer(address));
-        int callFlags = (stdcall ? Function.ALT_CONVENTION : Function.C_CONVENTION) | (firstVarArgIndex == -1 ? 0 : (firstVarArgIndex & 0xFF) << 7);
-        InvokeFunction invoker;
-        InvokeFunction function;
-        if (returnType == null) invoker = args -> {
-            if (args == null) args = EMPTY_ARGUMENTS;
+        int callFlags = (stdcall ? Function.ALT_CONVENTION : Function.C_CONVENTION) | (this.firstVarArgIndex == -1 ? 0 : (this.firstVarArgIndex & 0xFF) << 7);
+        InvocationDelegate<Object[], Object> function;
+        if (returnType == null) function = args -> {
+            if (args == null) args = Util.EMPTY_OBJECT_ARRAY;
             else {
                 Object[] arguments = new Object[args.length];
                 for (int i = 0; i < arguments.length; i ++) {
                     arguments[i] = i < JNAFunctionHandle.this.parameterTypes.size() ?
-                            checkArgumentType(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
+                            checkArgument(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
                 }
                 args = arguments;
             }
             JNAUtil.invoke(null, JNAFunctionHandle.this.function, callFlags, args);
             return null;
         };
-        else if (returnType.isCompound()) invoker = args -> {
+        else if (returnType.isCompound()) function = args -> {
             MemoryHandle memoryHandle = (MemoryHandle) args[0];
             Object[] arguments = new Object[args.length];
             for (int i = 1; i < arguments.length; i ++) {
                 arguments[i - 1] = i < JNAFunctionHandle.this.parameterTypes.size() ?
-                        checkArgumentType(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
+                        checkArgument(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
             }
             JNACompound compound = JNACompound.getInstance(memoryHandle);
             JNAUtil.invoke(compound, JNAFunctionHandle.this.function, callFlags, arguments);
             compound.autoRead();
             return memoryHandle;
         };
-        else invoker = args -> {
-            if (args == null) args = EMPTY_ARGUMENTS;
+        else function = args -> {
+            if (args == null) args = Util.EMPTY_OBJECT_ARRAY;
             else {
                 Object[] arguments = new Object[args.length];
                 for (int i = 0; i < arguments.length; i ++) {
                     arguments[i] = i < JNAFunctionHandle.this.parameterTypes.size() ?
-                            checkArgumentType(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
+                            checkArgument(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
                 }
                 args = arguments;
             }
             return JNAUtil.invoke(returnType == ScalarType.ADDRESS ? Pointer.class : returnType.carrier(),
                     JNAFunctionHandle.this.function, callFlags, args);
         };
-        if (dyncall) function = args -> {
+        InvocationDelegate<Object[], Object> delegate;
+        if (dyncall) delegate = args -> {
             Object varargs = args[args.length - 1];
             if (!varargs.getClass().isArray()) throw new IllegalArgumentException("Last argument must be array as variadic arguments");
             int varargsLength = Array.getLength(varargs);
             Object[] arguments = new Object[args.length - 1 + varargsLength];
             System.arraycopy(args, 0, arguments, 0, args.length - 1);
             System.arraycopy(varargs, 0, arguments, args.length - 1, varargsLength);
-            return invoker.invoke(arguments);
+            return function.invoke(arguments);
         };
-        else function = invoker;
-        if (saveErrno) invokeFunction = args -> {
+        else delegate = function;
+        if (saveErrno) this.delegate = args -> {
             try {
-                return function.invoke(args);
+                return delegate.invoke(args);
             }
             finally {
                 JNALastErrno.dump();
             }
         };
-        else invokeFunction = function;
+        else this.delegate = delegate;
     }
 
-    private static Object checkArgumentType(ForeignType type, Object argument) {
+    private static Object checkArgument(ForeignType type, Object argument) {
         if (type == ScalarType.BOOLEAN) return (Boolean) argument;
         else if (type == ScalarType.UTF16) return (Character) argument;
         else if (type == ScalarType.INT8 || type == ScalarType.CHAR) return ((Number) argument).byteValue();
@@ -200,62 +201,62 @@ public class JNAFunctionHandle extends FunctionHandle {
 
     @Override
     public void invokeVoid(Object... args) {
-        invokeFunction.invoke(args);
+        delegate.invoke(args);
     }
 
     @Override
     public boolean invokeBoolean(Object... args) {
-        return (boolean) invokeFunction.invoke(args);
+        return (boolean) delegate.invoke(args);
     }
 
     @Override
     public byte invokeInt8(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).byteValue();
+        return ((Number) delegate.invoke(args)).byteValue();
     }
 
     @Override
     public char invokeUTF16(Object... args) {
-        return (char) invokeFunction.invoke(args);
+        return (char) delegate.invoke(args);
     }
 
     @Override
     public short invokeInt16(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).shortValue();
+        return ((Number) delegate.invoke(args)).shortValue();
     }
 
     @Override
     public int invokeInt32(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).intValue();
+        return ((Number) delegate.invoke(args)).intValue();
     }
 
     @Override
     public long invokeInt64(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).longValue();
+        return ((Number) delegate.invoke(args)).longValue();
     }
 
     @Override
     public float invokeFloat(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).floatValue();
+        return ((Number) delegate.invoke(args)).floatValue();
     }
 
     @Override
     public double invokeDouble(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).doubleValue();
+        return ((Number) delegate.invoke(args)).doubleValue();
     }
 
     @Override
     public long invokeAddress(Object... args) {
-        return ((Number) invokeFunction.invoke(args)).longValue();
+        return ((Number) delegate.invoke(args)).longValue();
     }
 
     @Override
     public MemoryHandle invokeCompound(Object... args) {
-        return (MemoryHandle) invokeFunction.invoke(args);
+        return (MemoryHandle) delegate.invoke(args);
     }
 
     @Override
     public Object invoke(Object... args) {
-        return invokeFunction.invoke(args);
+        return delegate.invoke(args);
     }
 
 }

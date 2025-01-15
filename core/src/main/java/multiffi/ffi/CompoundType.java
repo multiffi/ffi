@@ -1,7 +1,8 @@
 package multiffi.ffi;
 
+import io.github.multiffi.ffi.Util;
+
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -13,9 +14,9 @@ public final class CompoundType extends ForeignType {
     }
 
     public static CompoundType of(ForeignType[] types, long[] offsets, long[] repetitions, long padding) {
-        if (types.length != offsets.length) throw new IndexOutOfBoundsException("Array length mismatch");
-        if (offsets.length != repetitions.length) throw new IndexOutOfBoundsException("Array length mismatch");
-        int length = offsets.length;
+        int length = types.length;
+        if (length != offsets.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
+        if (length != repetitions.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
         if (length == 0) return new CompoundType(Collections.emptyList(), 0, padding);
         else {
             List<CompoundElement> list = new ArrayList<>(length);
@@ -24,14 +25,23 @@ public final class CompoundType extends ForeignType {
             }
             CompoundElement last = list.get(length - 1);
             return new CompoundType(Collections.unmodifiableList(list), -1,
-                    Util.unsignedAddExact(last.getOffset(), Util.unsignedAddExact(last.size(), padding)));
+                    Util.unsignedAddExact(last.offset(), Util.unsignedAddExact(last.size(), padding)));
         }
     }
 
     public static CompoundType of(ForeignType[] types, long[] offsets, long padding) {
-        long[] repetitions = new long[types.length];
-        Arrays.fill(repetitions, 1);
-        return of(types, offsets, repetitions, padding);
+        int length = types.length;
+        if (length != offsets.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
+        if (length == 0) return new CompoundType(Collections.emptyList(), 0, padding);
+        else {
+            List<CompoundElement> list = new ArrayList<>(length);
+            for (int i = 0; i < length; i ++) {
+                list.add(new CompoundElement(types[i], offsets[i], 1));
+            }
+            CompoundElement last = list.get(length - 1);
+            return new CompoundType(Collections.unmodifiableList(list), -1,
+                    Util.unsignedAddExact(last.offset(), Util.unsignedAddExact(last.size(), padding)));
+        }
     }
 
     public static CompoundType of(ForeignType[] types, int typesOffset,
@@ -46,115 +56,165 @@ public final class CompoundType extends ForeignType {
             }
             CompoundElement last = list.get(length - 1);
             return new CompoundType(Collections.unmodifiableList(list), -1,
-                    Util.unsignedAddExact(last.getOffset(), Util.unsignedAddExact(last.size(), padding)));
+                    Util.unsignedAddExact(last.offset(), Util.unsignedAddExact(last.size(), padding)));
         }
     }
 
     public static CompoundType of(ForeignType[] types, int typesOffset,
                                   long[] offsets, int offsetsOffset,
                                   int length, long padding) {
-        long[] repetitions = new long[length];
-        Arrays.fill(repetitions, 1);
-        return of(types, typesOffset, offsets, offsetsOffset, repetitions, 0, length, padding);
-    }
-
-    public static CompoundType ofStruct(ForeignType[] types, int typesOffset,
-                                        long[] repetitions, int repetitionsOffset, int length) {
-        if (length == 0) return EMPTY;
+        if (length == 0) return new CompoundType(Collections.emptyList(), -1, padding);
         else {
             List<CompoundElement> list = new ArrayList<>(length);
-            long offset = 0;
-            ForeignType type = types[typesOffset];
-            CompoundElement first = new CompoundElement(type, offset, repetitions[repetitionsOffset]);
-            long alignment = first.getType().size();
-            list.add(first);
-            offset = Util.unsignedAddExact(offset, first.size());
-            for (int i = 1; i < length; i ++) {
-                long size = Util.unsignedMin(Foreign.addressSize(), align(types[i + typesOffset]));
-                long left = Long.remainderUnsigned(offset, size);
-                if (Long.compareUnsigned(left, 0) > 0) offset = Util.unsignedAddExact(offset, size - left);
-                CompoundElement compoundElement = new CompoundElement(types[i + typesOffset], offset, repetitions[i + repetitionsOffset]);
-                alignment = Math.max(alignment, size);
-                list.add(compoundElement);
-                offset = Util.unsignedAddExact(offset, compoundElement.size());
+            for (int i = 0; i < length; i ++) {
+                list.add(new CompoundElement(types[typesOffset + i], offsets[offsetsOffset + i], 1));
             }
-            if (length != 1) {
-                long left = Long.remainderUnsigned(list.get(list.size() - 1).getType().size(), alignment);
-                if (left != 0) offset = Util.unsignedAddExact(offset, alignment - left);
-                return new CompoundType(Collections.unmodifiableList(list), 0, offset);
-            }
-            else return new CompoundType(Collections.unmodifiableList(list), 0, offset);
+            CompoundElement last = list.get(length - 1);
+            return new CompoundType(Collections.unmodifiableList(list), -1,
+                    Util.unsignedAddExact(last.offset(), Util.unsignedAddExact(last.size(), padding)));
         }
     }
 
-    private static long align(ForeignType type) {
+    private static long alignSizeOf(ForeignType type) {
         if (type instanceof CompoundType) {
             long size = 0;
             for (CompoundElement compoundElement : ((CompoundType) type).compoundElements) {
-                size = Util.unsignedMax(size, align(compoundElement.getType()));
+                size = Util.unsignedMax(size, alignSizeOf(compoundElement.getType()));
             }
             return size;
         }
         else return type.size();
     }
 
-    public static CompoundType ofStruct(ForeignType[] types, int typesOffset, int length) {
-        long[] repetitions = new long[length];
-        Arrays.fill(repetitions, 1);
-        return ofStruct(types, typesOffset, repetitions, 0, length);
+    public static CompoundType ofStruct(ForeignType[] types, int typesOffset,
+                                        long[] repetitions, int repetitionsOffset, long[] typeAligns, int typeAlignsOffset,
+                                        int length, long packAlign) {
+        if (length == 0) return EMPTY;
+        else {
+            if (packAlign == 0 || (packAlign & (packAlign - 1)) != 0) throw new IllegalArgumentException("alignment must be a power-of-two value");
+            long offset = 0;
+            List<CompoundElement> list = new ArrayList<>(length);
+            CompoundElement compoundElement = new CompoundElement(types[typesOffset], offset, repetitions[repetitionsOffset]);
+            list.add(compoundElement);
+            offset = Util.unsignedAddExact(offset, compoundElement.size());
+            for (int i = 1; i < length; i ++) {
+                ForeignType type = types[typesOffset + i];
+                long typeAlignment = typeAligns[typeAlignsOffset + i];
+                if (typeAlignment == 0 || (typeAlignment & (typeAlignment - 1)) != 0)
+                    throw new IllegalArgumentException("alignment must be a power-of-two value");
+                long alignmentRequirement = Util.unsignedMin(Util.unsignedMax(alignSizeOf(type), typeAlignment), packAlign);
+                long remainder = Long.remainderUnsigned(offset, alignmentRequirement);
+                if (remainder != 0) offset = Util.unsignedAddExact(offset, alignmentRequirement - remainder);
+                compoundElement = new CompoundElement(type, offset, repetitions[i + repetitionsOffset]);
+                list.add(compoundElement);
+                offset = Util.unsignedAddExact(offset, compoundElement.size());
+            }
+            return new CompoundType(Collections.unmodifiableList(list), 0, offset);
+        }
     }
 
-    public static CompoundType ofStruct(ForeignType[] types, long[] repetitions) {
-        if (types.length != repetitions.length) throw new IndexOutOfBoundsException("Array length mismatch");
-        return ofStruct(types, 0, repetitions, 0, types.length);
+    public static CompoundType ofStruct(ForeignType[] types, int typesOffset, int length, long packAlign) {
+        if (length == 0) return EMPTY;
+        else {
+            if (packAlign == 0 || (packAlign & (packAlign - 1)) != 0) throw new IllegalArgumentException("alignment must be a power-of-two value");
+            long offset = 0;
+            List<CompoundElement> list = new ArrayList<>(length);
+            CompoundElement compoundElement = new CompoundElement(types[typesOffset], offset, 1);
+            list.add(compoundElement);
+            offset = Util.unsignedAddExact(offset, compoundElement.size());
+            for (int i = 1; i < length; i ++) {
+                ForeignType type = types[typesOffset + i];
+                long alignmentRequirement = Util.unsignedMin(alignSizeOf(type), packAlign);
+                long remainder = Long.remainderUnsigned(offset, alignmentRequirement);
+                if (remainder != 0) offset = Util.unsignedAddExact(offset, alignmentRequirement - remainder);
+                compoundElement = new CompoundElement(type, offset, 1);
+                list.add(compoundElement);
+                offset = Util.unsignedAddExact(offset, compoundElement.size());
+            }
+            return new CompoundType(Collections.unmodifiableList(list), 0, offset);
+        }
+    }
+
+    public static CompoundType ofStruct(ForeignType[] types, long[] repetitions, long[] typeAligns, long packAlign) {
+        int length = types.length;
+        if (length != repetitions.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
+        if (length != typeAligns.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
+        return ofStruct(types, 0, repetitions, 0, typeAligns, 0, length, packAlign);
+    }
+
+    public static CompoundType ofStruct(ForeignType[] types, long packAlign) {
+        return ofStruct(types, 0, types.length, packAlign);
     }
 
     public static CompoundType ofStruct(ForeignType... types) {
-        long[] repetitions = new long[types.length];
-        Arrays.fill(repetitions, 1);
-        return ofStruct(types, repetitions);
+        if (types == null || types.length == 0) return EMPTY;
+        else return ofStruct(types, 0, types.length, Foreign.alignmentSize());
     }
 
-    public static CompoundType ofUnion(ForeignType[] types, int typesOffset,
-                                       long[] repetitions, int repetitionsOffset, int length) {
+    public static CompoundType ofUnion(ForeignType[] types, int typesOffset, long[] repetitions, int repetitionsOffset, long[] typeAligns, int typeAlignsOffset, int length, long packAlign) {
         if (length == 0) return EMPTY;
         else {
-            long alignment = 0;
+            if (packAlign == 0 || (packAlign & (packAlign - 1)) != 0) throw new IllegalArgumentException("alignment must be a power-of-two value");
             long size = 0;
             List<CompoundElement> list = new ArrayList<>();
             for (int i = 0; i < length; i ++) {
-                CompoundElement compoundElement = new CompoundElement(types[i + typesOffset], 0, repetitions[i + repetitionsOffset]);
+                ForeignType type = types[typesOffset + i];
+                long typeAlignment = typeAligns[typeAlignsOffset + i];
+                if (typeAlignment == 0 || (typeAlignment & (typeAlignment - 1)) != 0)
+                    throw new IllegalArgumentException("alignment must be a power-of-two value");
+                CompoundElement compoundElement = new CompoundElement(type, 0, repetitions[repetitionsOffset + i]);
                 list.add(compoundElement);
-                alignment = Util.unsignedMax(alignment, compoundElement.getType().size());
+                packAlign = Util.unsignedMax(packAlign, Util.unsignedMax(alignSizeOf(type), typeAlignment));
                 size = Util.unsignedMax(size, compoundElement.size());
             }
-            if (Long.remainderUnsigned(size, alignment) != 0)
-                size = Util.unsignedMultiplyExact(size / (alignment + 1), alignment);
+            if (Long.remainderUnsigned(size, packAlign) != 0) size = Util.unsignedMultiplyExact(size / (packAlign + 1), packAlign);
             return new CompoundType(Collections.unmodifiableList(list), 1, size);
         }
     }
 
-    public static CompoundType ofUnion(ForeignType[] types, int typesOffset, int length) {
-        long[] memberRepetitions = new long[length];
-        Arrays.fill(memberRepetitions, 1);
-        return ofUnion(types, typesOffset, memberRepetitions, 0, length);
+    public static CompoundType ofUnion(ForeignType[] types, int typesOffset, int length, long packAlign) {
+        if (length == 0) return EMPTY;
+        else {
+            if (packAlign == 0 || (packAlign & (packAlign - 1)) != 0) throw new IllegalArgumentException("alignment must be a power-of-two value");
+            long size = 0;
+            List<CompoundElement> list = new ArrayList<>();
+            for (int i = 0; i < length; i ++) {
+                ForeignType type = types[typesOffset + i];
+                CompoundElement compoundElement = new CompoundElement(type, 0, 1);
+                list.add(compoundElement);
+                packAlign = Util.unsignedMax(packAlign, alignSizeOf(type));
+                size = Util.unsignedMax(size, compoundElement.size());
+            }
+            if (Long.remainderUnsigned(size, packAlign) != 0) size = Util.unsignedMultiplyExact(size / (packAlign + 1), packAlign);
+            return new CompoundType(Collections.unmodifiableList(list), 1, size);
+        }
     }
 
-    public static CompoundType ofUnion(ForeignType[] types, long[] repetitions) {
-        if (types.length != repetitions.length) throw new IndexOutOfBoundsException("Array length mismatch");
-        return ofUnion(types, 0, repetitions, 0, types.length);
+    public static CompoundType ofUnion(ForeignType[] types, long[] repetitions, long[] typeAligns, long packAlign) {
+        int length = types.length;
+        if (length != repetitions.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
+        if (length != typeAligns.length) throw new ArrayIndexOutOfBoundsException("length mismatch");
+        return ofUnion(types, 0, repetitions, 0, typeAligns, 0, length, packAlign);
     }
 
     public static CompoundType ofUnion(ForeignType... types) {
-        long[] memberRepetitions = new long[types.length];
-        Arrays.fill(memberRepetitions, 1);
-        return ofUnion(types, memberRepetitions);
+        if (types == null || types.length == 0) return EMPTY;
+        else return ofUnion(types, 0, types.length, Foreign.alignmentSize());
+    }
+
+    public static CompoundType ofArray(ForeignType type, long repetition, long typeAlign) {
+        if (repetition == 0) return EMPTY;
+        else {
+            if (typeAlign == 0 || (typeAlign & (typeAlign - 1)) != 0) throw new IllegalArgumentException("alignment must be a power-of-two value");
+            return new CompoundType(Collections.singletonList(new CompoundElement(type, 0, repetition)),
+                    2, Util.unsignedMultiplyExact(Util.unsignedMax(type.size(), typeAlign), repetition));
+        }
     }
 
     public static CompoundType ofArray(ForeignType type, long repetition) {
         if (repetition == 0) return EMPTY;
-        else return new CompoundType(Collections.singletonList(new CompoundElement(type, 0, repetition)), 2,
-                Util.unsignedMultiplyExact(type.size(), repetition));
+        else return new CompoundType(Collections.singletonList(new CompoundElement(type, 0, repetition)),
+                2, Util.unsignedMultiplyExact(type.size(), repetition));
     }
     
     private final List<CompoundElement> compoundElements;
@@ -167,7 +227,7 @@ public final class CompoundType extends ForeignType {
         if (kind == -1) {
             kind = 0;
             for (CompoundElement compoundElement : compoundElements) {
-                if (compoundElement.getOffset() != 0) {
+                if (compoundElement.offset() != 0) {
                     kind = 1;
                     break;
                 }
@@ -199,6 +259,11 @@ public final class CompoundType extends ForeignType {
     @Override
     public boolean isArray() {
         return kind == 2;
+    }
+
+    @Override
+    public boolean isNumeric() {
+        return false;
     }
 
     @Override

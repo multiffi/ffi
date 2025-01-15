@@ -94,7 +94,7 @@ public abstract class JNACompound extends Structure implements Structure.ByValue
                     else if (array instanceof long[]) return new Longs((long[]) array);
                     else if (array instanceof float[]) return new Floats((float[]) array);
                     else if (array instanceof double[]) return new Doubles((double[]) array);
-                    else throw new IllegalStateException("Unexpected exception");
+                    else throw new IllegalStateException("Unsupported array");
                 }
                 else {
                     return new Bytes(new byte[length]) {
