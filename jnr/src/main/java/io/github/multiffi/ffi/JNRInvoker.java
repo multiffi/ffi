@@ -272,7 +272,7 @@ public abstract class JNRInvoker {
         public static final JNRInvoker BOOLEAN = new Buffer() {
             @Override
             protected Object invoke(CallContext context, long function, HeapInvocationBuffer heapInvocationBuffer) {
-                return INVOKER.invokeInt(context, function, heapInvocationBuffer) != 0;
+                return INVOKER.invokeAddress(context, function, heapInvocationBuffer) != 0;
             }
         };
         public static final JNRInvoker BYTE = new Buffer() {
@@ -363,7 +363,7 @@ public abstract class JNRInvoker {
             for (int i = (returnType != null && returnType.isCompound()) ? 1 : 0; i < parameterTypes.size(); i ++) {
                 ForeignType parameterType = parameterTypes.get(i);
                 Object arg = args[i];
-                if (parameterType == ScalarType.BOOLEAN) heapInvocationBuffer.putByte(((boolean) arg) ? 1 : 0);
+                if (parameterType == ScalarType.BOOLEAN) heapInvocationBuffer.putAddress(((boolean) arg) ? 1 : 0);
                 else if (parameterType == ScalarType.INT8 || parameterType == ScalarType.CHAR)
                     heapInvocationBuffer.putByte(((Number) arg).byteValue() & 0xFF);
                 else if (parameterType == ScalarType.INT16 || parameterType == ScalarType.SHORT)
@@ -398,8 +398,9 @@ public abstract class JNRInvoker {
     public abstract boolean isSupported(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, CallingConvention convention);
     public abstract Object invoke(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, long function, Object... args);
 
+
     public static JNRInvoker getSupportedInvoker(CallContext context, ForeignType returnType, List<ForeignType> parameterTypes, CallingConvention convention) {
-        for (JNRInvoker invoker : JNRUtil.InvokerHolder.FAST_INVOKERS) {
+        for (JNRInvoker invoker : JNRUtil.FAST_INVOKERS) {
             if (invoker.isSupported(context, returnType, parameterTypes, convention)) return invoker;
         }
         if (returnType == null) return JNRInvoker.Buffer.VOID;

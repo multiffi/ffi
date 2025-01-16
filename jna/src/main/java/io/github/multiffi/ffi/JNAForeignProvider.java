@@ -40,6 +40,11 @@ public class JNAForeignProvider extends ForeignProvider {
     }
 
     @Override
+    public long diffSize() {
+        return Native.SIZE_T_SIZE;
+    }
+
+    @Override
     public long shortSize() {
         return 2L;
     }
@@ -65,8 +70,8 @@ public class JNAForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public long alignmentSize() {
-        return JNAUtil.ALIGNMENT_SIZE;
+    public long alignSize() {
+        return JNAUtil.ALIGN_SIZE;
     }
 
     @Override

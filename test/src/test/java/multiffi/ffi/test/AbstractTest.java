@@ -83,11 +83,13 @@ public abstract class AbstractTest {
         FunctionHandle functionHandle = Foreign.downcallHandle(hCompoundMethod.address(), pack96, pack96);
         ThreadLocalRandom random = ThreadLocalRandom.current();
         try (MemoryHandle heap = MemoryHandle.allocate(pack96); MemoryHandle direct = MemoryHandle.allocateDirect(pack96)) {
-            double rand = random.nextDouble();
-            heap.setDouble(0, rand);
-            direct.setDouble(0, rand);
-            Assertions.assertEquals(0, functionHandle.invokeCompound(direct, heap).compareTo(heap));
-            Assertions.assertEquals(0, functionHandle.invokeCompound(heap, direct).compareTo(direct));
+            for (int i = 0; i < 100; i ++) {
+                double rand = random.nextDouble();
+                heap.setDouble(0, rand);
+                direct.setDouble(0, rand);
+                Assertions.assertEquals(0, functionHandle.invokeCompound(direct, heap).compareTo(heap));
+                Assertions.assertEquals(0, functionHandle.invokeCompound(heap, direct).compareTo(direct));
+            }
         }
     }
 
@@ -96,10 +98,12 @@ public abstract class AbstractTest {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         Memory.pushStack();
         try {
-            MemoryHandle hInt = MemoryHandle.allocateOnStack(ScalarType.INT32);
-            int rand = random.nextInt();
-            hInt.setInt32(0, rand);
-            Assertions.assertEquals(rand, hInt.getInt32(0));
+            for (int i = 0; i < 100; i ++) {
+                MemoryHandle hInt = MemoryHandle.allocateOnStack(ScalarType.INT32);
+                int rand = random.nextInt();
+                hInt.setInt32(0, rand);
+                Assertions.assertEquals(rand, hInt.getInt32(0));
+            }
         }
         finally {
             Memory.popStack();

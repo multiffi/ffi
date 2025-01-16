@@ -23,7 +23,7 @@ public final class FFMAllocator {
                 .orElseThrow(() -> new UnsatisfiedLinkError("Failed to get symbol: `malloc`"));
         FunctionDescriptor signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.SIZE_T);
         mallocMethodHandle = MethodHandles.filterReturnValue(
-                FFMMethodFilters.filterAddressArgument(FFMUtil.LINKER.downcallHandle(address, signature), 0, false),
+                FFMMethodFilters.filterSizeArgument(FFMUtil.LINKER.downcallHandle(address, signature), 0, false),
                 FFMMethodFilters.SEGMENT_TO_INT64);
         address = FFMUtil.DEFAULT_LOOKUP.find("free")
                 .orElseThrow(() -> new UnsatisfiedLinkError("Failed to get symbol: `free`"));
@@ -34,14 +34,14 @@ public final class FFMAllocator {
                 .orElseThrow(() -> new UnsatisfiedLinkError("Failed to get symbol: `calloc`"));
         signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.SIZE_T, FFMUtil.SIZE_T);
         callocMethodHandle = MethodHandles.filterReturnValue(
-                FFMMethodFilters.filterAddressArgument(
-                        FFMMethodFilters.filterAddressArgument(FFMUtil.LINKER.downcallHandle(address, signature), 0, false), 1, false),
+                FFMMethodFilters.filterSizeArgument(
+                        FFMMethodFilters.filterSizeArgument(FFMUtil.LINKER.downcallHandle(address, signature), 0, false), 1, false),
                 FFMMethodFilters.SEGMENT_TO_INT64);
         address = FFMUtil.DEFAULT_LOOKUP.find("realloc")
                 .orElseThrow(() -> new UnsatisfiedLinkError("Failed to get symbol: `realloc`"));
         signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.SIZE_T);
         reallocMethodHandle = MethodHandles.filterReturnValue(
-                FFMMethodFilters.filterAddressArgument(
+                FFMMethodFilters.filterSizeArgument(
                         MethodHandles.filterArguments(FFMUtil.LINKER.downcallHandle(address, signature), 0,
                                 FFMMethodFilters.INT64_TO_SEGMENT), 1, false),
                 FFMMethodFilters.SEGMENT_TO_INT64);
@@ -49,7 +49,7 @@ public final class FFMAllocator {
                 .orElseThrow(() -> new UnsatisfiedLinkError("Failed to get symbol: `memchr`"));
         signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.INT, FFMUtil.SIZE_T);
         memchrMethodHandle = MethodHandles.filterReturnValue(
-                FFMMethodFilters.filterAddressArgument(
+                FFMMethodFilters.filterSizeArgument(
                         FFMMethodFilters.filterIntArgument(
                                 MethodHandles.filterArguments(FFMUtil.LINKER.downcallHandle(address, signature), 0,
                                         FFMMethodFilters.INT64_TO_SEGMENT), 1, false), 2, false), FFMMethodFilters.SEGMENT_TO_INT64);
@@ -57,7 +57,7 @@ public final class FFMAllocator {
                 .orElseThrow(() -> new UnsatisfiedLinkError("Failed to get symbol: `memcmp`"));
         signature = FunctionDescriptor.of(FFMUtil.INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.SIZE_T);
         memcmpMethodHandle = FFMMethodFilters.filterIntReturnValue(
-                FFMMethodFilters.filterAddressArgument(
+                FFMMethodFilters.filterSizeArgument(
                         MethodHandles.filterArguments(
                                 MethodHandles.filterArguments(FFMUtil.LINKER.downcallHandle(address, signature)
                                         , 0, FFMMethodFilters.INT64_TO_SEGMENT), 1, FFMMethodFilters.INT64_TO_SEGMENT), 2, false), false);

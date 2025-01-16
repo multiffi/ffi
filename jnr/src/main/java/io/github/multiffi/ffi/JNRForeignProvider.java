@@ -41,6 +41,11 @@ public class JNRForeignProvider extends ForeignProvider {
     }
 
     @Override
+    public long diffSize() {
+        return JNRUtil.DIFF_SIZE;
+    }
+
+    @Override
     public long shortSize() {
         return 2L;
     }
@@ -66,8 +71,8 @@ public class JNRForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public long alignmentSize() {
-        return JNRUtil.ALIGNMENT_SIZE;
+    public long alignSize() {
+        return JNRUtil.ALIGN_SIZE;
     }
 
     @Override
@@ -237,7 +242,7 @@ public class JNRForeignProvider extends ForeignProvider {
             int index = 0;
             for (int i = 0; i < parameterFFITypes.length; i ++) {
                 ForeignType parameterType = parameterTypes[i];
-                if (parameterType == ScalarType.BOOLEAN) args[i] = buffer.getByte(index) != 0;
+                if (parameterType == ScalarType.BOOLEAN) args[i] = buffer.getAddress(index) != 0;
                 else if (parameterType == ScalarType.INT8 || parameterType == ScalarType.CHAR) args[i] = buffer.getByte(index);
                 else if (parameterType == ScalarType.UTF16 || (parameterType == ScalarType.WCHAR && Foreign.wcharSize() == 2L))
                     args[i] = (char) buffer.getShort(index);
@@ -245,12 +250,12 @@ public class JNRForeignProvider extends ForeignProvider {
                     args[i] = buffer.getShort(index);
                 else if (parameterType == ScalarType.INT32 || parameterType == ScalarType.INT
                         || (parameterType == ScalarType.LONG && Foreign.longSize() == 4L)
-                        || (parameterType == ScalarType.SIZE && Foreign.addressSize() == 4L)
+                        || (parameterType == ScalarType.SIZE && Foreign.diffSize() == 4L)
                         || (parameterType == ScalarType.WCHAR && Foreign.wcharSize() == 4L))
                     args[i] = buffer.getInt(index);
                 else if (parameterType == ScalarType.INT64
                         || (parameterType == ScalarType.LONG && Foreign.longSize() == 8L)
-                        || (parameterType == ScalarType.SIZE && Foreign.addressSize() == 8L)) {
+                        || (parameterType == ScalarType.SIZE && Foreign.diffSize() == 8L)) {
                     args[i] = buffer.getLong(index);
                     if (Foreign.addressSize() == 4L) index ++;
                 }
@@ -271,7 +276,7 @@ public class JNRForeignProvider extends ForeignProvider {
                 throw new IllegalStateException(e);
             }
             if (returnType != null && result == null) throw new NullPointerException();
-            if (returnType == ScalarType.BOOLEAN) buffer.setByteReturn((byte) (((boolean) result) ? 1 : 0));
+            if (returnType == ScalarType.BOOLEAN) buffer.setAddressReturn(((boolean) result) ? 1 : 0);
             else if (returnType == ScalarType.INT8 || returnType == ScalarType.CHAR) buffer.setByteReturn((byte) result);
             else if (returnType == ScalarType.UTF16 || (returnType == ScalarType.WCHAR && Foreign.wcharSize() == 2L))
                 buffer.setShortReturn((short) (char) result);
@@ -279,12 +284,12 @@ public class JNRForeignProvider extends ForeignProvider {
                 buffer.setShortReturn((short) result);
             else if (returnType == ScalarType.INT32 || returnType == ScalarType.INT
                     || (returnType == ScalarType.LONG && Foreign.longSize() == 4L)
-                    || (returnType == ScalarType.SIZE && Foreign.addressSize() == 4L)
+                    || (returnType == ScalarType.SIZE && Foreign.diffSize() == 4L)
                     || (returnType == ScalarType.WCHAR && Foreign.wcharSize() == 4L))
                 buffer.setIntReturn((int) result);
             else if (returnType == ScalarType.INT64
                     || (returnType == ScalarType.LONG && Foreign.longSize() == 8L)
-                    || (returnType == ScalarType.SIZE && Foreign.addressSize() == 8L))
+                    || (returnType == ScalarType.SIZE && Foreign.diffSize() == 8L))
                 buffer.setLongReturn((long) result);
             else if (returnType == ScalarType.FLOAT) buffer.setFloatReturn((float) result);
             else if (returnType == ScalarType.DOUBLE) buffer.setDoubleReturn((double) result);

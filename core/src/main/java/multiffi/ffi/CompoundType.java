@@ -148,7 +148,7 @@ public final class CompoundType extends ForeignType {
 
     public static CompoundType ofStruct(ForeignType... types) {
         if (types == null || types.length == 0) return EMPTY;
-        else return ofStruct(types, 0, types.length, Foreign.alignmentSize());
+        else return ofStruct(types, 0, types.length, Foreign.alignSize());
     }
 
     public static CompoundType ofUnion(ForeignType[] types, int typesOffset, long[] repetitions, int repetitionsOffset, long[] typeAligns, int typeAlignsOffset, int length, long packAlign) {
@@ -199,7 +199,7 @@ public final class CompoundType extends ForeignType {
 
     public static CompoundType ofUnion(ForeignType... types) {
         if (types == null || types.length == 0) return EMPTY;
-        else return ofUnion(types, 0, types.length, Foreign.alignmentSize());
+        else return ofUnion(types, 0, types.length, Foreign.alignSize());
     }
 
     public static CompoundType ofArray(ForeignType type, long repetition, long typeAlign) {

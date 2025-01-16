@@ -117,7 +117,7 @@ public class FFMFunctionHandle extends FunctionHandle {
                 System.arraycopy(parameterLayouts, 0, newParameterLayouts, 0, parameterCount);
                 for (int i = 0; i < varargsLength; i ++) {
                     Object vararg = arguments[parameterCount + i];
-                    if (vararg instanceof Boolean) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BOOLEAN;
+                    if (vararg instanceof Boolean) newParameterLayouts[parameterCount + i] = FFMUtil.BOOL;
                     else if (vararg instanceof Byte) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BYTE;
                     else if (vararg instanceof Character) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_CHAR;
                     else if (vararg instanceof Short) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_SHORT;
@@ -145,19 +145,21 @@ public class FFMFunctionHandle extends FunctionHandle {
                     if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i + 1, false);
                     else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i + 1, false);
                     else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i + 1, false);
-                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i + 1, false);
+                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeArgument(methodHandle, i + 1, false);
                     else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
                             .filterArguments(methodHandle, i + 1, FFMMethodFilters.INT64_TO_SEGMENT);
                     else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i + 1, false);
+                    else if (parameterType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanArgument(methodHandle, i + 1, false);
                     else if (parameterType.isCompound()) methodHandle = MethodHandles
                             .filterArguments(methodHandle, i + 1, FFMMethodFilters.HANDLE_TO_SEGMENT);
                 }
                 if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongReturnValue(methodHandle, false);
-                else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.SEGMENT_TO_INT64);
                 else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanReturnValue(methodHandle, false);
                 Invoker invoker = FFMASMRuntime.generateInvoker(arguments.length);
                 Object result;
                 try {
@@ -195,7 +197,7 @@ public class FFMFunctionHandle extends FunctionHandle {
                 System.arraycopy(parameterLayouts, 0, newParameterLayouts, 0, parameterCount);
                 for (int i = 0; i < varargsLength; i ++) {
                     Object vararg = arguments[parameterCount + i];
-                    if (vararg instanceof Boolean) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BOOLEAN;
+                    if (vararg instanceof Boolean) newParameterLayouts[parameterCount + i] = FFMUtil.BOOL;
                     else if (vararg instanceof Byte) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_BYTE;
                     else if (vararg instanceof Character) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_CHAR;
                     else if (vararg instanceof Short) newParameterLayouts[parameterCount + i] = ValueLayout.JAVA_SHORT;
@@ -223,19 +225,21 @@ public class FFMFunctionHandle extends FunctionHandle {
                     if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i, false);
                     else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i, false);
                     else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i, false);
-                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i, false);
+                    else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeArgument(methodHandle, i, false);
                     else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
                             .filterArguments(methodHandle, i, FFMMethodFilters.INT64_TO_SEGMENT);
                     else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i, false);
+                    else if (parameterType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanArgument(methodHandle, i, false);
                     else if (parameterType.isCompound()) methodHandle = MethodHandles
                             .filterArguments(methodHandle, i, FFMMethodFilters.HANDLE_TO_SEGMENT);
                 }
                 if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongReturnValue(methodHandle, false);
-                else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeReturnValue(methodHandle, false);
                 else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.SEGMENT_TO_INT64);
                 else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, false);
+                else if (returnType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanReturnValue(methodHandle, false);
                 Invoker invoker = FFMASMRuntime.generateInvoker(arguments.length);
                 Object result;
                 try {
@@ -266,19 +270,21 @@ public class FFMFunctionHandle extends FunctionHandle {
                 if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
                 else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
                 else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
-                else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
+                else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
                 else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
                         .filterArguments(methodHandle, i + (saveErrno ? 1 : 0), FFMMethodFilters.INT64_TO_SEGMENT);
                 else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
+                else if (parameterType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanArgument(methodHandle, i + (saveErrno ? 1 : 0), false);
                 else if (parameterType.isCompound()) methodHandle = MethodHandles
                         .filterArguments(methodHandle, i + (saveErrno ? 1 : 0), FFMMethodFilters.HANDLE_TO_SEGMENT);
             }
             if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, false);
             else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, false);
             else if (returnType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongReturnValue(methodHandle, false);
-            else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, false);
+            else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeReturnValue(methodHandle, false);
             else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.SEGMENT_TO_INT64);
             else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, false);
+            else if (returnType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanReturnValue(methodHandle, false);
             Invoker invoker = FFMASMRuntime.generateInvoker(this.parameterTypes.size() + (saveErrno ? 1 : 0));
             MethodHandle function = methodHandle;
             if (addReturnMemoryParameter) {

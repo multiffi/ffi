@@ -9,7 +9,7 @@ with simple and clear API.
 
 This project has such main goals:
 - Interoperate with code (native functions and closures) and data (memory not managed by JVM) outside JRE without write/generate and compile any JNI code
-- Compatible with JDK 8+ and Android SDK 16+
+- Compatible with JDK 8+ and Android SDK 16+ with multiple backends
 
 ## Compatibility
 

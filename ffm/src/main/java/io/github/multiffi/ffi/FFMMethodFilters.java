@@ -80,7 +80,7 @@ public final class FFMMethodFilters {
             throw new ArithmeticException("integer overflow");
         else return (int) value;
     }
-    public static int addressToInt32(long value) {
+    public static int sizeToInt32(long value) {
         if (FFMUtil.LONG_SIZE == 4 && (((value >> 32) + 1) & ~1) != 0)
             throw new ArithmeticException("integer overflow");
         else return (int) value;
@@ -89,6 +89,18 @@ public final class FFMMethodFilters {
         if (FFMUtil.WCHAR_SIZE == 2 && (value > 65535 || value < 0))
             throw new ArithmeticException("integer overflow");
         else return (char) value;
+    }
+    public static int booleanToInt32(boolean value) {
+        return value ? 1 : 0;
+    }
+    public static boolean int32ToBoolean(int value) {
+        return value != 0;
+    }
+    public static long booleanToInt64(boolean value) {
+        return value ? 1L : 0L;
+    }
+    public static boolean int64ToBoolean(long value) {
+        return value != 0L;
     }
     public static MethodHandle filterShortArgument(MethodHandle target, int pos, boolean upcall) {
         if (target != null && FFMUtil.SHORT_SIZE == 2) return MethodHandles.filterArguments(target, pos,
@@ -105,15 +117,21 @@ public final class FFMMethodFilters {
                 upcall ? INT32_TO_INT64 : LONG_TO_INT32);
         else return target;
     }
-    public static MethodHandle filterAddressArgument(MethodHandle target, int pos, boolean upcall) {
-        if (target != null && FFMUtil.ADDRESS_SIZE == 4) return MethodHandles.filterArguments(target, pos,
-                upcall ? INT32_TO_INT64 : ADDRESS_TO_INT32);
+    public static MethodHandle filterSizeArgument(MethodHandle target, int pos, boolean upcall) {
+        if (target != null && FFMUtil.DIFF_SIZE == 4) return MethodHandles.filterArguments(target, pos,
+                upcall ? INT32_TO_INT64 : SIZE_TO_INT32);
         else return target;
     }
     public static MethodHandle filterWCharArgument(MethodHandle target, int pos, boolean upcall) {
         if (target != null && FFMUtil.WCHAR_SIZE == 2) return MethodHandles.filterArguments(target, pos,
                 upcall ? UTF16_TO_INT32 : WCHAR_TO_UTF16);
         else return target;
+    }
+    public static MethodHandle filterBooleanArgument(MethodHandle target, int pos, boolean upcall) {
+        if (target == null) return target;
+        else if (FFMUtil.ADDRESS_SIZE == 8) return MethodHandles.filterArguments(target, pos,
+                upcall ? BOOLEAN_TO_INT64 : INT64_TO_BOOLEAN);
+        else return MethodHandles.filterArguments(target, pos, upcall ? BOOLEAN_TO_INT32 : INT32_TO_BOOLEAN);
     }
     public static MethodHandle filterShortReturnValue(MethodHandle target, boolean upcall) {
         if (target != null && FFMUtil.SHORT_SIZE == 2) return MethodHandles.filterReturnValue(target,
@@ -130,15 +148,21 @@ public final class FFMMethodFilters {
                 upcall ? LONG_TO_INT32 : INT32_TO_INT64);
         else return target;
     }
-    public static MethodHandle filterAddressReturnValue(MethodHandle target, boolean upcall) {
-        if (target != null && FFMUtil.ADDRESS_SIZE == 4) return MethodHandles.filterReturnValue(target,
-                upcall ? ADDRESS_TO_INT32 : INT32_TO_INT64);
+    public static MethodHandle filterSizeReturnValue(MethodHandle target, boolean upcall) {
+        if (target != null && FFMUtil.DIFF_SIZE == 4) return MethodHandles.filterReturnValue(target,
+                upcall ? SIZE_TO_INT32 : INT32_TO_INT64);
         else return target;
     }
     public static MethodHandle filterWCharReturnValue(MethodHandle target, boolean upcall) {
         if (target != null && FFMUtil.WCHAR_SIZE == 2) return MethodHandles.filterReturnValue(target,
                 upcall ? WCHAR_TO_UTF16 : UTF16_TO_INT32);
         else return target;
+    }
+    public static MethodHandle filterBooleanReturnValue(MethodHandle target, boolean upcall) {
+        if (target == null) return null;
+        else if (FFMUtil.ADDRESS_SIZE == 8) return MethodHandles.filterReturnValue(target,
+                upcall ? INT64_TO_BOOLEAN : BOOLEAN_TO_INT64);
+        else return MethodHandles.filterReturnValue(target, upcall ? INT32_TO_BOOLEAN : BOOLEAN_TO_INT32);
     }
 
     public static final MethodHandle HANDLE_TO_SEGMENT;
@@ -148,11 +172,15 @@ public final class FFMMethodFilters {
     public static final MethodHandle SHORT_TO_INT16;
     public static final MethodHandle INT_TO_INT32;
     public static final MethodHandle LONG_TO_INT32;
-    public static final MethodHandle ADDRESS_TO_INT32;
+    public static final MethodHandle SIZE_TO_INT32;
     public static final MethodHandle SEGMENT_TO_INT64;
     public static final MethodHandle INT64_TO_SEGMENT;
     public static final MethodHandle UTF16_TO_INT32;
     public static final MethodHandle WCHAR_TO_UTF16;
+    public static final MethodHandle INT64_TO_BOOLEAN;
+    public static final MethodHandle BOOLEAN_TO_INT64;
+    public static final MethodHandle INT32_TO_BOOLEAN;
+    public static final MethodHandle BOOLEAN_TO_INT32;
     static {
         try {
             HANDLE_TO_SEGMENT = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "handleToSegment",
@@ -169,7 +197,7 @@ public final class FFMMethodFilters {
                     MethodType.methodType(int.class, long.class));
             LONG_TO_INT32 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "longToInt32",
                     MethodType.methodType(int.class, long.class));
-            ADDRESS_TO_INT32 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "addressToInt32",
+            SIZE_TO_INT32 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "sizeToInt32",
                     MethodType.methodType(int.class, long.class));
             SEGMENT_TO_INT64 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "segmentToInt64",
                     MethodType.methodType(long.class, MemorySegment.class));
@@ -179,6 +207,14 @@ public final class FFMMethodFilters {
                     MethodType.methodType(int.class, char.class));
             WCHAR_TO_UTF16 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "wcharToUTF16",
                     MethodType.methodType(char.class, int.class));
+            INT64_TO_BOOLEAN = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "int64ToBoolean",
+                    MethodType.methodType(boolean.class, long.class));
+            BOOLEAN_TO_INT64 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "booleanToInt64",
+                    MethodType.methodType(long.class, boolean.class));
+            INT32_TO_BOOLEAN = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "int32ToBoolean",
+                    MethodType.methodType(boolean.class, int.class));
+            BOOLEAN_TO_INT32 = MethodHandles.lookup().findStatic(FFMMethodFilters.class, "booleanToInt32",
+                    MethodType.methodType(int.class, boolean.class));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new IllegalStateException("Unexpected exception", e);
         }

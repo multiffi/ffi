@@ -7,6 +7,7 @@ import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import multiffi.ffi.Foreign;
 import multiffi.ffi.ForeignType;
 import sun.misc.Unsafe;
 
@@ -80,7 +81,7 @@ public final class JNAUtil {
     }
 
     public static final long PAGE_SIZE = UNSAFE.pageSize() & 0xFFFFFFFFL;
-    public static final long ALIGNMENT_SIZE = Platform.isWindows() ? Native.POINTER_SIZE * 2L : Native.POINTER_SIZE;
+    public static final long ALIGN_SIZE = Platform.isWindows() ? Native.POINTER_SIZE * 2L : Native.POINTER_SIZE;
 
     public static final Charset UTF16_CHARSET = JNAUtil.IS_BIG_ENDIAN ? Charset.forName("UTF-16BE") : Charset.forName("UTF-16LE");
     public static final Charset UTF32_CHARSET = JNAUtil.IS_BIG_ENDIAN ? Charset.forName("UTF-32BE") : Charset.forName("UTF-32LE");
@@ -195,8 +196,10 @@ public final class JNAUtil {
             NATIVE.invokeVoid(function, address, callFlags, args);
             return null;
         }
-        else if (returnType == boolean.class || returnType == Boolean.class)
-            return NATIVE.invokeInt(function, address, callFlags, args) != 0;
+        else if (returnType == boolean.class || returnType == Boolean.class) {
+            if (Foreign.addressSize() == 4L) return NATIVE.invokeInt(function, address, callFlags, args) != 0;
+            else return NATIVE.invokeLong(function, address, callFlags, args) != 0;
+        }
         else if (returnType == byte.class || returnType == Byte.class)
             return (byte) NATIVE.invokeInt(function, address, callFlags, args);
         else if (returnType == short.class || returnType == Short.class)
@@ -301,7 +304,7 @@ public final class JNAUtil {
             long size = type.size();
             if (size < 0 || size > (Integer.MAX_VALUE - 8)) throw new IndexOutOfBoundsException("Index out of range: " + Long.toUnsignedString(size));
             int length = (int) size;
-            JNACompound.VariableLength.deque().addFirst(length);
+            JNACompound.VariableLength.push(length);
             return JNACompound.VariableLength.class;
         }
         else return type.carrier();

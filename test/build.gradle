@@ -4,6 +4,6 @@ targetCompatibility = JavaVersion.VERSION_22
 dependencies {
     testImplementation project(':core')
     testImplementation project(':ffm')
-    //testImplementation project(':jna')
-    //testImplementation project(':jnr')
+    testImplementation project(':jna')
+    testImplementation project(':jnr')
 }

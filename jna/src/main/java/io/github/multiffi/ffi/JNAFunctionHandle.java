@@ -77,6 +77,7 @@ public class JNAFunctionHandle extends FunctionHandle {
                         checkArgument(JNAFunctionHandle.this.parameterTypes.get(i), args[i]) : checkCompound(args[i]);
             }
             JNACompound compound = JNACompound.getInstance(memoryHandle);
+            JNACompound.VariableLength.push(compound.size());
             JNAUtil.invoke(compound, JNAFunctionHandle.this.function, callFlags, arguments);
             compound.autoRead();
             return memoryHandle;
@@ -117,7 +118,7 @@ public class JNAFunctionHandle extends FunctionHandle {
     }
 
     private static Object checkArgument(ForeignType type, Object argument) {
-        if (type == ScalarType.BOOLEAN) return (Boolean) argument;
+        if (type == ScalarType.BOOLEAN) return ((Boolean) argument) ? 1 : 0;
         else if (type == ScalarType.UTF16) return (Character) argument;
         else if (type == ScalarType.INT8 || type == ScalarType.CHAR) return ((Number) argument).byteValue();
         else if (type == ScalarType.INT16
@@ -126,14 +127,14 @@ public class JNAFunctionHandle extends FunctionHandle {
         else if (type == ScalarType.INT32
                 || (type == ScalarType.INT && Foreign.intSize() == 4)
                 || (type == ScalarType.LONG && Foreign.longSize() == 4)
-                || (type == ScalarType.SIZE && Foreign.addressSize() == 4)
+                || (type == ScalarType.SIZE && Foreign.diffSize() == 4)
                 || (type == ScalarType.WCHAR && Foreign.wcharSize() == 4))
             return ((Number) argument).intValue();
         else if (type == ScalarType.INT64
                 || (type == ScalarType.SHORT && Foreign.shortSize() == 8)
                 || (type == ScalarType.INT && Foreign.intSize() == 8)
                 || (type == ScalarType.LONG && Foreign.longSize() == 8)
-                || (type == ScalarType.SIZE && Foreign.addressSize() == 8))
+                || (type == ScalarType.SIZE && Foreign.diffSize() == 8))
             return ((Number) argument).longValue();
         else if (type == ScalarType.FLOAT) return ((Number) argument).floatValue();
         else if (type == ScalarType.DOUBLE) return ((Number) argument).doubleValue();

@@ -35,8 +35,8 @@ public final class FFMAlignedAllocator {
             if (_aligned_mallocAddress != null && _aligned_reallocAddress != null && _aligned_freeAddress != null) {
                 FunctionDescriptor signature = FunctionDescriptor.of(ValueLayout.ADDRESS, FFMUtil.SIZE_T, FFMUtil.SIZE_T);
                 MethodHandle _aligned_malloc = MethodHandles.filterReturnValue(
-                        FFMMethodFilters.filterAddressArgument(
-                                FFMMethodFilters.filterAddressArgument(
+                        FFMMethodFilters.filterSizeArgument(
+                                FFMMethodFilters.filterSizeArgument(
                                         FFMUtil.LINKER.downcallHandle(_aligned_mallocAddress, signature), 0, false), 1, false),
                         FFMMethodFilters.SEGMENT_TO_INT64);
                 _allocateAlignedFunction = (size, alignment) -> {
@@ -50,8 +50,8 @@ public final class FFMAlignedAllocator {
                 };
                 signature = FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, FFMUtil.SIZE_T, FFMUtil.SIZE_T);
                 MethodHandle _aligned_realloc = MethodHandles.filterReturnValue(
-                        FFMMethodFilters.filterAddressArgument(
-                                FFMMethodFilters.filterAddressArgument(
+                        FFMMethodFilters.filterSizeArgument(
+                                FFMMethodFilters.filterSizeArgument(
                                         MethodHandles.filterArguments(
                                                 FFMUtil.LINKER.downcallHandle(_aligned_reallocAddress, signature)
                                                 , 0, FFMMethodFilters.INT64_TO_SEGMENT), 1, false), 2, false),

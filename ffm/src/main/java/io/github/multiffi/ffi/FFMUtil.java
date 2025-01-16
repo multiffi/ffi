@@ -81,15 +81,17 @@ public final class FFMUtil {
     public static final ValueLayout SHORT = (ValueLayout) LINKER.canonicalLayouts().get("short");
     public static final ValueLayout INT = (ValueLayout) LINKER.canonicalLayouts().get("int");
     public static final ValueLayout LONG = (ValueLayout) LINKER.canonicalLayouts().get("long");
+    public static final ValueLayout BOOL = ValueLayout.ADDRESS.byteSize() == 8L ? ValueLayout.JAVA_LONG : ValueLayout.JAVA_INT;
     public static final MemoryLayout WCHAR_T = LINKER.canonicalLayouts().get("wchar_t");
 
-    public static final long ADDRESS_SIZE = SIZE_T.byteSize();
+    public static final long ADDRESS_SIZE = ValueLayout.ADDRESS.byteSize();
+    public static final long DIFF_SIZE = SIZE_T.byteSize();
     public static final long SHORT_SIZE = SHORT.byteSize();
     public static final long INT_SIZE = INT.byteSize();
     public static final long LONG_SIZE = LONG.byteSize();
     public static final long WCHAR_SIZE = WCHAR_T.byteSize();
     public static final long PAGE_SIZE = UNSAFE.pageSize() & 0xFFFFFFFFL;
-    public static final long ALIGNMENT_SIZE = IS_WINDOWS ? ADDRESS_SIZE * 2 : ADDRESS_SIZE;
+    public static final long ALIGN_SIZE = IS_WINDOWS ? ADDRESS_SIZE * 2 : ADDRESS_SIZE;
 
     public static final Charset UTF16_CHARSET = IS_BIG_ENDIAN ? StandardCharsets.UTF_16BE : StandardCharsets.UTF_16LE;
     public static final Charset UTF32_CHARSET = IS_BIG_ENDIAN ? Charset.forName("UTF-32BE") : Charset.forName("UTF-32LE");
@@ -128,18 +130,18 @@ public final class FFMUtil {
         else if (type == ScalarType.INT32
                 || (type == ScalarType.INT && Foreign.intSize() == 4)
                 || (type == ScalarType.LONG && Foreign.longSize() == 4)
-                || (type == ScalarType.SIZE && Foreign.addressSize() == 4)
+                || (type == ScalarType.SIZE && Foreign.diffSize() == 4)
                 || (type == ScalarType.WCHAR && Foreign.wcharSize() == 4))
             return ValueLayout.JAVA_INT;
         else if (type == ScalarType.INT64
                 || (type == ScalarType.SHORT && Foreign.shortSize() == 8)
                 || (type == ScalarType.INT && Foreign.intSize() == 8)
                 || (type == ScalarType.LONG && Foreign.longSize() == 8)
-                || (type == ScalarType.SIZE && Foreign.addressSize() == 8)) 
+                || (type == ScalarType.SIZE && Foreign.diffSize() == 8))
             return ValueLayout.JAVA_LONG;
         else if (type == ScalarType.FLOAT) return ValueLayout.JAVA_FLOAT;
         else if (type == ScalarType.DOUBLE) return ValueLayout.JAVA_DOUBLE;
-        else if (type == ScalarType.BOOLEAN) return ValueLayout.JAVA_BOOLEAN;
+        else if (type == ScalarType.BOOLEAN) return BOOL;
         else if (type == ScalarType.UTF16 || (type == ScalarType.WCHAR && Foreign.wcharSize() == 2))
             return ValueLayout.JAVA_CHAR;
         else if (type == ScalarType.ADDRESS) return ValueLayout.ADDRESS;

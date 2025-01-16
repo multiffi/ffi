@@ -538,7 +538,7 @@ public final class FFMASMRuntime {
                                     "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
                             classInit.visitVarInsn(Opcodes.ASTORE, 1);
                         }
-                        else if (parameterForeignType == ScalarType.SIZE && Foreign.addressSize() == 4) {
+                        else if (parameterForeignType == ScalarType.SIZE && Foreign.diffSize() == 4) {
                             classInit.visitInsn(Opcodes.ICONST_1);
                             classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
                             classInit.visitVarInsn(Opcodes.ASTORE, 2);
@@ -577,6 +577,23 @@ public final class FFMASMRuntime {
                             classInit.visitVarInsn(Opcodes.ALOAD, 2);
                             classInit.visitInsn(Opcodes.ICONST_0);
                             classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "WCHAR_TO_UTF16",
+                                    "Ljava/lang/invoke/MethodHandle;");
+                            classInit.visitInsn(Opcodes.AASTORE);
+                            classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                            visitLdcInsn(classInit, i + (addReturnMemoryParameter ? 1 : 0) + (saveErrno ? 1 : 0));
+                            classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                            classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterArguments",
+                                    "(Ljava/lang/invoke/MethodHandle;I[Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                            classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                        }
+                        else if (parameterForeignType == ScalarType.BOOLEAN) {
+                            classInit.visitInsn(Opcodes.ICONST_1);
+                            classInit.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/invoke/MethodHandle");
+                            classInit.visitVarInsn(Opcodes.ASTORE, 2);
+                            classInit.visitVarInsn(Opcodes.ALOAD, 2);
+                            classInit.visitInsn(Opcodes.ICONST_0);
+                            classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters",
+                                    Foreign.addressSize() == 4L ? "BOOLEAN_TO_INT32" : "BOOLEAN_TO_INT64",
                                     "Ljava/lang/invoke/MethodHandle;");
                             classInit.visitInsn(Opcodes.AASTORE);
                             classInit.visitVarInsn(Opcodes.ALOAD, 1);
@@ -627,7 +644,7 @@ public final class FFMASMRuntime {
                                 "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
                         classInit.visitVarInsn(Opcodes.ASTORE, 1);
                     }
-                    else if (returnForeignType == ScalarType.SIZE && Foreign.addressSize() == 4) {
+                    else if (returnForeignType == ScalarType.SIZE && Foreign.diffSize() == 4) {
                         classInit.visitVarInsn(Opcodes.ALOAD, 1);
                         classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "INT32_TO_INT64",
                                 "Ljava/lang/invoke/MethodHandle;");
@@ -646,6 +663,15 @@ public final class FFMASMRuntime {
                     else if (returnForeignType == ScalarType.WCHAR && Foreign.shortSize() == 2) {
                         classInit.visitVarInsn(Opcodes.ALOAD, 1);
                         classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters", "UTF16_TO_INT32",
+                                "Ljava/lang/invoke/MethodHandle;");
+                        classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
+                                "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
+                        classInit.visitVarInsn(Opcodes.ASTORE, 1);
+                    }
+                    else if (returnForeignType == ScalarType.BOOLEAN) {
+                        classInit.visitVarInsn(Opcodes.ALOAD, 1);
+                        classInit.visitFieldInsn(Opcodes.GETSTATIC, "io/github/multiffi/ffi/FFMMethodFilters",
+                                Foreign.addressSize() == 4L ? "INT32_TO_BOOLEAN" : "INT64_TO_BOOLEAN",
                                 "Ljava/lang/invoke/MethodHandle;");
                         classInit.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/invoke/MethodHandles", "filterReturnValue",
                                 "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/MethodHandle;", false);
@@ -795,7 +821,7 @@ public final class FFMASMRuntime {
         }
         else if (type == ScalarType.SIZE) {
             if (clazz != long.class) throw new IllegalArgumentException("Illegal mapping type; expected long");
-            if (Foreign.addressSize() == 4)
+            if (Foreign.diffSize() == 4)
                 methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
                         "Ljava/lang/foreign/ValueLayout$OfInt;");
             else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
@@ -813,8 +839,11 @@ public final class FFMASMRuntime {
         }
         else if (type == ScalarType.BOOLEAN) {
             if (clazz != boolean.class) throw new IllegalArgumentException("Illegal mapping type; expected boolean");
-            methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_BOOLEAN",
-                    "Ljava/lang/foreign/ValueLayout$OfBoolean;");
+            if (Foreign.addressSize() == 4)
+                methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_INT",
+                        "Ljava/lang/foreign/ValueLayout$OfInt;");
+            else methodVisitor.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/foreign/ValueLayout", "JAVA_LONG",
+                    "Ljava/lang/foreign/ValueLayout$OfLong;");
         }
         else if (type == ScalarType.UTF16) {
             if (clazz != char.class) throw new IllegalArgumentException("Illegal mapping type; expected char");

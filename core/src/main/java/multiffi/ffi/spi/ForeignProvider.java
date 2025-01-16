@@ -49,12 +49,13 @@ public abstract class ForeignProvider {
     }
 
     public abstract long addressSize();
+    public abstract long diffSize();
     public abstract long shortSize();
     public abstract long intSize();
     public abstract long longSize();
     public abstract long wcharSize();
     public abstract long pageSize();
-    public abstract long alignmentSize();
+    public abstract long alignSize();
 
     public abstract Charset ansiCharset();
     public abstract Charset wideCharset();

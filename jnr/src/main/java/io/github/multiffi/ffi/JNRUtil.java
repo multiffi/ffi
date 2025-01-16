@@ -10,11 +10,11 @@ import jnr.ffi.NativeType;
 import jnr.ffi.Platform;
 import jnr.ffi.Pointer;
 import jnr.ffi.Runtime;
+import jnr.ffi.TypeAlias;
 import jnr.ffi.annotations.IgnoreError;
 import jnr.ffi.types.caddr_t;
 import multiffi.ffi.Foreign;
 import multiffi.ffi.ForeignType;
-import multiffi.ffi.MemoryHandle;
 import multiffi.ffi.ScalarType;
 import sun.misc.Unsafe;
 
@@ -58,9 +58,10 @@ public final class JNRUtil {
     public static final Object IMPL_LOOKUP;
 
     public static final long ADDRESS_SIZE = RUNTIME.addressSize();
+    public static final long DIFF_SIZE = RUNTIME.findType(TypeAlias.size_t).size();
     public static final long LONG_SIZE = RUNTIME.longSize();
     public static final long PAGE_SIZE = PAGE_MANAGER.pageSize();
-    public static final long ALIGNMENT_SIZE = PLATFORM.getOS() == Platform.OS.WINDOWS ? ADDRESS_SIZE * 2L : ADDRESS_SIZE;
+    public static final long ALIGN_SIZE = PLATFORM.getOS() == Platform.OS.WINDOWS ? ADDRESS_SIZE * 2L : ADDRESS_SIZE;
     public static final long WCHAR_SIZE = PLATFORM.getOS() == Platform.OS.WINDOWS ? 2L : 4L;
 
     public static final Charset UTF16_CHARSET = IS_BIG_ENDIAN ? Charset.forName("UTF-16BE") : Charset.forName("UTF-16LE");
@@ -157,30 +158,27 @@ public final class JNRUtil {
         }
     }
 
-    public static final class InvokerHolder {
-        private InvokerHolder() {
-            throw new UnsupportedOperationException();
-        }
-        public static final List<JNRInvoker> FAST_INVOKERS = Collections.unmodifiableList(Arrays.asList(
-                JNRInvoker.FastInt.I0, JNRInvoker.FastInt.I1, JNRInvoker.FastInt.I2, JNRInvoker.FastInt.I3,
-                JNRInvoker.FastInt.I4, JNRInvoker.FastInt.I5, JNRInvoker.FastInt.I6,
-                JNRInvoker.FastLong.L0, JNRInvoker.FastLong.L1, JNRInvoker.FastLong.L2, JNRInvoker.FastLong.L3,
-                JNRInvoker.FastLong.L4, JNRInvoker.FastLong.L5, JNRInvoker.FastLong.L6,
-                JNRInvoker.FastNumeric.N0, JNRInvoker.FastNumeric.N1, JNRInvoker.FastNumeric.N2, JNRInvoker.FastNumeric.N3,
-                JNRInvoker.FastNumeric.N4, JNRInvoker.FastNumeric.N5, JNRInvoker.FastNumeric.N6
-        ));
-    }
+    public static final List<JNRInvoker> FAST_INVOKERS = Collections.unmodifiableList(Arrays.asList(
+            JNRInvoker.FastInt.I0, JNRInvoker.FastInt.I1, JNRInvoker.FastInt.I2, JNRInvoker.FastInt.I3,
+            JNRInvoker.FastInt.I4, JNRInvoker.FastInt.I5, JNRInvoker.FastInt.I6,
+            JNRInvoker.FastLong.L0, JNRInvoker.FastLong.L1, JNRInvoker.FastLong.L2, JNRInvoker.FastLong.L3,
+            JNRInvoker.FastLong.L4, JNRInvoker.FastLong.L5, JNRInvoker.FastLong.L6,
+            JNRInvoker.FastNumeric.N0, JNRInvoker.FastNumeric.N1, JNRInvoker.FastNumeric.N2, JNRInvoker.FastNumeric.N3,
+            JNRInvoker.FastNumeric.N4, JNRInvoker.FastNumeric.N5, JNRInvoker.FastNumeric.N6
+    ));
 
     public static Type toFFIType(ForeignType foreignType) {
         if (foreignType == null) return Type.VOID;
-        else if (foreignType == ScalarType.BOOLEAN) return Type.UINT8;
         else if (foreignType == ScalarType.INT8) return Type.SINT8;
         else if (foreignType == ScalarType.UTF16 || (foreignType == ScalarType.WCHAR && Foreign.wcharSize() == 2L)) return Type.UINT16;
         else if (foreignType == ScalarType.INT16) return Type.SINT16;
         else if (foreignType == ScalarType.INT32
-                || (foreignType == ScalarType.SIZE && Foreign.addressSize() == 4L)
-                || (foreignType == ScalarType.WCHAR && Foreign.wcharSize() == 4L)) return Type.SINT32;
-        else if (foreignType == ScalarType.INT64 || (foreignType == ScalarType.SIZE && Foreign.addressSize() == 8L)) return Type.SINT64;
+                || (foreignType == ScalarType.SIZE && Foreign.diffSize() == 4L)
+                || (foreignType == ScalarType.WCHAR && Foreign.wcharSize() == 4L)
+                || (foreignType == ScalarType.BOOLEAN && Foreign.addressSize() == 4L)) return Type.SINT32;
+        else if (foreignType == ScalarType.INT64
+                || (foreignType == ScalarType.SIZE && Foreign.diffSize() == 8L)
+                || (foreignType == ScalarType.BOOLEAN && Foreign.addressSize() == 8L)) return Type.SINT64;
         else if (foreignType == ScalarType.CHAR) return Type.SCHAR;
         else if (foreignType == ScalarType.SHORT) return Type.SSHORT;
         else if (foreignType == ScalarType.INT) return Type.SINT;
@@ -210,22 +208,6 @@ public final class JNRUtil {
             types[i] = JNRUtil.toFFIType(Objects.requireNonNull(foreignTypes.get(i)));
         }
         return types;
-    }
-
-    public static void checkType(ForeignType type, Class<?> clazz) {
-        Class<?> expected;
-        if (type == ScalarType.BOOLEAN) expected = boolean.class;
-        else if (type == ScalarType.UTF16) expected = char.class;
-        else if (type == ScalarType.INT8 || type == ScalarType.CHAR) expected = byte.class;
-        else if (type == ScalarType.INT16) expected = short.class;
-        else if (type == ScalarType.INT32 || type == ScalarType.WCHAR) expected = int.class;
-        else if (type == ScalarType.INT64 || type == ScalarType.SHORT || type == ScalarType.INT
-                || type == ScalarType.LONG || type == ScalarType.SIZE || type == ScalarType.ADDRESS)
-            expected = long.class;
-        else if (type == ScalarType.FLOAT) expected = float.class;
-        else if (type == ScalarType.DOUBLE) expected = double.class;
-        else expected = MemoryHandle.class;
-        if (clazz != expected) throw new IllegalArgumentException("Illegal mapping type; expected " + expected);
     }
 
     public static String mapLibraryName(String libraryName) {

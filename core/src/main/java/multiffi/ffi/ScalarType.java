@@ -5,9 +5,9 @@ import io.github.multiffi.ffi.Util;
 public final class ScalarType extends ForeignType {
 
     /**
-     * Java {@code boolean}; C {@code _Bool}; C++ {@code bool}
+     * Java {@code boolean}; C/C++ {@code bool}; Windows {@code BOOL}
      */
-    public static final ScalarType BOOLEAN = new ScalarType(boolean.class, 1);
+    public static final ScalarType BOOLEAN = new ScalarType(boolean.class, Foreign.addressSize());
     /**
      * Java {@code char}; Windows {@code WCHAR}
      */
@@ -43,7 +43,7 @@ public final class ScalarType extends ForeignType {
     /**
      * C/C++ {@code size_t}
      */
-    public static final ScalarType SIZE = new ScalarType(Foreign.addressSize() == 8 ? long.class : int.class, Foreign.addressSize());
+    public static final ScalarType SIZE = new ScalarType(Foreign.diffSize() == 8 ? long.class : int.class, Foreign.diffSize());
     /**
      * C/C++ {@code long} {@code long long}
      */

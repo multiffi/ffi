@@ -43,6 +43,11 @@ public class FFMForeignProvider extends ForeignProvider {
     }
 
     @Override
+    public long diffSize() {
+        return FFMUtil.DIFF_SIZE;
+    }
+
+    @Override
     public long shortSize() {
         return FFMUtil.SHORT_SIZE;
     }
@@ -68,8 +73,8 @@ public class FFMForeignProvider extends ForeignProvider {
     }
 
     @Override
-    public long alignmentSize() {
-        return FFMUtil.ALIGNMENT_SIZE;
+    public long alignSize() {
+        return FFMUtil.ALIGN_SIZE;
     }
 
     @Override
@@ -240,19 +245,21 @@ public class FFMForeignProvider extends ForeignProvider {
             if (parameterType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortArgument(methodHandle, i, true);
             else if (parameterType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntArgument(methodHandle, i, true);
             else if (parameterType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongArgument(methodHandle, i, true);
-            else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressArgument(methodHandle, i, true);
+            else if (parameterType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeArgument(methodHandle, i, true);
             else if (parameterType == ScalarType.ADDRESS) methodHandle = MethodHandles
                     .filterArguments(methodHandle, i, FFMMethodFilters.SEGMENT_TO_INT64);
             else if (parameterType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharArgument(methodHandle, i, true);
+            else if (parameterType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanArgument(methodHandle, i, true);
             else if (parameterType.isCompound()) methodHandle = MethodHandles
                     .filterArguments(methodHandle, i, FFMMethodFilters.SEGMENT_TO_HANDLE);
         }
         if (returnType == ScalarType.SHORT) methodHandle = FFMMethodFilters.filterShortReturnValue(methodHandle, true);
         else if (returnType == ScalarType.INT) methodHandle = FFMMethodFilters.filterIntReturnValue(methodHandle, true);
         else if (returnType == ScalarType.LONG) methodHandle = FFMMethodFilters.filterLongReturnValue(methodHandle, true);
-        else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterAddressReturnValue(methodHandle, true);
+        else if (returnType == ScalarType.SIZE) methodHandle = FFMMethodFilters.filterSizeReturnValue(methodHandle, true);
         else if (returnType == ScalarType.ADDRESS) methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.INT64_TO_SEGMENT);
         else if (returnType == ScalarType.WCHAR) methodHandle = FFMMethodFilters.filterWCharReturnValue(methodHandle, true);
+        else if (returnType == ScalarType.BOOLEAN) methodHandle = FFMMethodFilters.filterBooleanReturnValue(methodHandle, true);
         else if (returnType != null && returnType.isCompound())
             methodHandle = MethodHandles.filterReturnValue(methodHandle, FFMMethodFilters.HANDLE_TO_SEGMENT);
         if (Modifier.isStatic(method.getModifiers())) object = method.getDeclaringClass();

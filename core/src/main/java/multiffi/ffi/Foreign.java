@@ -28,6 +28,10 @@ public final class Foreign {
         return IMPLEMENTATION.addressSize();
     }
 
+    public static long diffSize() {
+        return IMPLEMENTATION.diffSize();
+    }
+
     public static long shortSize() {
         return IMPLEMENTATION.shortSize();
     }
@@ -48,8 +52,8 @@ public final class Foreign {
         return IMPLEMENTATION.pageSize();
     }
 
-    public static long alignmentSize() {
-        return IMPLEMENTATION.alignmentSize();
+    public static long alignSize() {
+        return IMPLEMENTATION.alignSize();
     }
 
     public static Charset ansiCharset() {

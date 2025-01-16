@@ -118,7 +118,7 @@ public abstract class JNACompound extends Structure implements Structure.ByValue
     public static class VariableLength extends JNACompound {
         public byte[] array;
         public VariableLength() {
-            this(deque().pop());
+            this(SIZE_DEQUE_THREAD_LOCAL.get().pop());
         }
         public VariableLength(int size) {
             super();
@@ -130,8 +130,8 @@ public abstract class JNACompound extends Structure implements Structure.ByValue
                 return new ArrayDeque<>();
             }
         };
-        public static Deque<Integer> deque() {
-            return SIZE_DEQUE_THREAD_LOCAL.get();
+        public static void push(int length) {
+            SIZE_DEQUE_THREAD_LOCAL.get().addFirst(length);
         }
     }
 
